@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Cpp2IL.Core">
+      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\Cpp2IL.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="LibCpp2IL">
+      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\LibCpp2IL.dll</HintPath>
+    </Reference>
+    <Reference Include="AsmResolver.DotNet">
+      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\AsmResolver.DotNet.dll</HintPath>
+    </Reference>
+    <Reference Include="Il2CppInterop.Common">
+      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\Il2CppInterop.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Il2CppInterop.Generator">
+      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\Il2CppInterop.Generator.dll</HintPath>
+    </Reference>
+    <Reference Include="AssetRipper.Primitives">
+      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\AssetRipper.Primitives.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\*.dll">
+      <Link>vendor\core\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

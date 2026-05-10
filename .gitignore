@@ -2,6 +2,7 @@ bin/
 obj/
 .vs/
 .bridge/
+_recovered/
 
 published/
 tmp-bridge-test/
