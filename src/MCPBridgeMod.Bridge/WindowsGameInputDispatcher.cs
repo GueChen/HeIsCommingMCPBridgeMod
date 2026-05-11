@@ -23,6 +23,7 @@ public sealed class WindowsGameInputDispatcher : IActionDispatcher
 		["move_left"] = 65,
 		["move_right"] = 68,
 		["attack"] = 32,
+		["interact"] = 32,
 		["open_map"] = 77,
 		["close_map"] = 27,
 		["end_turn"] = 69,

@@ -23,7 +23,9 @@ public sealed class GameSnapshot
 
 	public SnapshotDiagnostics Diagnostics { get; }
 
-	public GameSnapshot(string screen, string runId, DateTimeOffset capturedAt, PlayerSnapshot player, IReadOnlyList<InventoryItemSnapshot> inventory, IReadOnlyList<ActionDescriptor> availableActions, EncounterSnapshot? encounter, MapSnapshot? map, SnapshotDiagnostics diagnostics)
+	public GameEventSnapshot? EventContext { get; }
+
+	public GameSnapshot(string screen, string runId, DateTimeOffset capturedAt, PlayerSnapshot player, IReadOnlyList<InventoryItemSnapshot> inventory, IReadOnlyList<ActionDescriptor> availableActions, EncounterSnapshot? encounter, MapSnapshot? map, SnapshotDiagnostics diagnostics, GameEventSnapshot? eventContext = null)
 	{
 		Screen = screen;
 		RunId = runId;
@@ -34,5 +36,6 @@ public sealed class GameSnapshot
 		Encounter = encounter;
 		Map = map;
 		Diagnostics = diagnostics;
+		EventContext = eventContext;
 	}
 }

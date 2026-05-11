@@ -16,6 +16,8 @@ public static class BridgeActionNames
 
 	public const string Attack = "attack";
 
+	public const string Interact = "interact";
+
 	public const string OpenMap = "open_map";
 
 	public const string CloseMap = "close_map";

@@ -7,7 +7,7 @@ public static class BridgeActionCatalog
 {
 	public static IReadOnlyList<ActionDescriptor> CreateDefaultActions()
 	{
-		return new ActionDescriptor[12]
+		return new ActionDescriptor[13]
 		{
 			Create("confirm", "Advance start/menu"),
 			Create("cancel", "Cancel / back"),
@@ -16,6 +16,7 @@ public static class BridgeActionCatalog
 			Create("move_left", "Move selection left"),
 			Create("move_right", "Move selection right"),
 			Create("attack", "Perform default attack / continue battle"),
+			Create("interact", "Interact with current node"),
 			Create("open_map", "Open map"),
 			Create("close_map", "Close map"),
 			Create("end_turn", "End current turn"),

@@ -194,6 +194,7 @@ function Invoke-QueuedAction {
         move_left = @{ ScanCode = 0x1E; HoldMilliseconds = 150; SendKeys = 'a' }
         move_right = @{ ScanCode = 0x20; HoldMilliseconds = 150; SendKeys = 'd' }
         attack = @{ ScanCode = 0x39; HoldMilliseconds = 80; SendKeys = ' ' }
+        interact = @{ ScanCode = 0x39; HoldMilliseconds = 80; SendKeys = ' ' }
         open_map = @{ ScanCode = 0x32; HoldMilliseconds = 80; SendKeys = 'm' }
         close_map = @{ ScanCode = 0x01; HoldMilliseconds = 80; SendKeys = '{ESC}' }
         end_turn = @{ ScanCode = 0x12; HoldMilliseconds = 80; SendKeys = 'e' }

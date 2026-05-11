@@ -9,7 +9,11 @@ using Il2CppSystem.Collections.Generic;
 using MCPBridgeMod.Contracts;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using SystemCollections = System.Collections.Generic;
+using Object = UnityEngine.Object;
 
 namespace MCPBridgeMod.Plugin;
 
@@ -93,16 +97,17 @@ public sealed class LiveCatalogCapture
 			WaitingRoomDisplayer val6 = Object.FindObjectOfType<WaitingRoomDisplayer>();
 			ShowContinueWorld val7 = Object.FindObjectOfType<ShowContinueWorld>();
 			PlayerController val8 = ((val3 != null) ? val3.GetPlayerController() : null) ?? Object.FindObjectOfType<PlayerController>();
-			ScreenState screenState = DetermineScreenState(controlsManager, val5, difficultyToggle, val6, val7, val3, val4);
-			IReadOnlyList<CatalogItem> readOnlyList = BuildItems(val2);
-			IReadOnlyList<CatalogMonster> readOnlyList2 = BuildMonsters(val3);
-			IReadOnlyList<CatalogMap> readOnlyList3 = BuildMaps(val4);
+			EventPopup val9 = Object.FindObjectOfType<EventPopup>();
+			ScreenState screenState = DetermineScreenState(controlsManager, val5, difficultyToggle, val6, val7, val3, val4, val9);
+			SystemCollections.IReadOnlyList<CatalogItem> readOnlyList = BuildItems(val2);
+			SystemCollections.IReadOnlyList<CatalogMonster> readOnlyList2 = BuildMonsters(val3);
+			SystemCollections.IReadOnlyList<CatalogMap> readOnlyList3 = BuildMaps(val4);
 			CharacterProfile characterProfile = BuildCharacter(val, val3);
 			MapSnapshot mapSnapshot = BuildMapSnapshot(readOnlyList3, val4, val8, screenState);
-			Dictionary<string, string> obj = new Dictionary<string, string>
+			SystemCollections.Dictionary<string, string> obj = new SystemCollections.Dictionary<string, string>
 			{
 				["reason"] = reason,
-				["scene"] = ((Scene)(ref activeScene)).name
+				["scene"] = activeScene.name
 			};
 			flag = val2 != null;
 			obj["itemManager"] = flag.ToString();
@@ -122,6 +127,8 @@ public sealed class LiveCatalogCapture
 			obj["waitingRoom"] = flag.ToString();
 			flag = val7 != null;
 			obj["showContinueWorld"] = flag.ToString();
+			flag = IsActive((val9 != null) ? ((Component)val9).gameObject : null);
+			obj["eventPopup"] = flag.ToString();
 			obj["currentStoryWorld"] = SafeCall<string>(delegate
 			{
 				//IL_001f: Unknown result type (might be due to invalid IL or missing references)
@@ -163,10 +170,12 @@ public sealed class LiveCatalogCapture
 			obj["menuWaitingRoom"] = flag.ToString();
 			flag = screenState.IsContinueWorld;
 			obj["menuContinueWorld"] = flag.ToString();
+			obj["mapViewScope"] = mapSnapshot?.ViewScope ?? "none";
 			obj["mapGraphNodes"] = (mapSnapshot?.Nodes.Count ?? 0).ToString(CultureInfo.InvariantCulture);
 			obj["mapGraphEdges"] = (mapSnapshot?.Edges.Count ?? 0).ToString(CultureInfo.InvariantCulture);
 			obj["mapCurrentNodeId"] = mapSnapshot?.CurrentNodeId;
 			obj["mapAvailableMoveCount"] = (mapSnapshot?.AvailableMoveNodeIds.Count ?? 0).ToString(CultureInfo.InvariantCulture);
+			obj["mapKnownPointOfInterestCount"] = (mapSnapshot?.KnownPointsOfInterest.Count ?? 0).ToString(CultureInfo.InvariantCulture);
 			flag = val8 != null;
 			obj["playerController"] = flag.ToString();
 			flag = _runtimeOptions.VerboseLogging;
@@ -174,31 +183,31 @@ public sealed class LiveCatalogCapture
 			SnapshotDiagnostics diagnostics = new SnapshotDiagnostics("live-plugin-capture", "Structured runtime metadata captured from the active IL2CPP scene.", obj);
 			GameCatalog catalog = new GameCatalog(DateTimeOffset.UtcNow, characterProfile, readOnlyList, readOnlyList2, readOnlyList3, diagnostics);
 			_artifactWriter.WriteCatalog(catalog);
-			_artifactWriter.WriteSnapshot(BuildSnapshot(catalog, val, val3, mapSnapshot, screenState));
+			_artifactWriter.WriteSnapshot(BuildSnapshot(catalog, val, val3, val4, val8, mapSnapshot, screenState, val9));
 			ManualLogSource log = _log;
-			BepInExInfoLogInterpolatedStringHandler val9 = new BepInExInfoLogInterpolatedStringHandler(72, 6, ref flag);
+			BepInExInfoLogInterpolatedStringHandler val10 = new BepInExInfoLogInterpolatedStringHandler(72, 6, out flag);
 			if (flag)
 			{
-				((BepInExLogInterpolatedStringHandler)val9).AppendLiteral("Captured catalog from scene '");
-				((BepInExLogInterpolatedStringHandler)val9).AppendFormatted<string>(((Scene)(ref activeScene)).name);
-				((BepInExLogInterpolatedStringHandler)val9).AppendLiteral("' (");
-				((BepInExLogInterpolatedStringHandler)val9).AppendFormatted<string>(reason);
-				((BepInExLogInterpolatedStringHandler)val9).AppendLiteral("): items=");
-				((BepInExLogInterpolatedStringHandler)val9).AppendFormatted<int>(readOnlyList.Count);
-				((BepInExLogInterpolatedStringHandler)val9).AppendLiteral(", monsters=");
-				((BepInExLogInterpolatedStringHandler)val9).AppendFormatted<int>(readOnlyList2.Count);
-				((BepInExLogInterpolatedStringHandler)val9).AppendLiteral(", maps=");
-				((BepInExLogInterpolatedStringHandler)val9).AppendFormatted<int>(readOnlyList3.Count);
-				((BepInExLogInterpolatedStringHandler)val9).AppendLiteral(", character=");
-				((BepInExLogInterpolatedStringHandler)val9).AppendFormatted<string>((characterProfile == null) ? "none" : "present");
-				((BepInExLogInterpolatedStringHandler)val9).AppendLiteral(".");
+				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral("Captured catalog from scene '");
+				((BepInExLogInterpolatedStringHandler)val10).AppendFormatted<string>(activeScene.name);
+				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral("' (");
+				((BepInExLogInterpolatedStringHandler)val10).AppendFormatted<string>(reason);
+				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral("): items=");
+				((BepInExLogInterpolatedStringHandler)val10).AppendFormatted<int>(readOnlyList.Count);
+				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral(", monsters=");
+				((BepInExLogInterpolatedStringHandler)val10).AppendFormatted<int>(readOnlyList2.Count);
+				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral(", maps=");
+				((BepInExLogInterpolatedStringHandler)val10).AppendFormatted<int>(readOnlyList3.Count);
+				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral(", character=");
+				((BepInExLogInterpolatedStringHandler)val10).AppendFormatted<string>((characterProfile == null) ? "none" : "present");
+				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral(".");
 			}
-			log.LogInfo(val9);
+			log.LogInfo(val10);
 		}
 		catch (Exception ex)
 		{
 			ManualLogSource log2 = _log;
-			BepInExErrorLogInterpolatedStringHandler val10 = new BepInExErrorLogInterpolatedStringHandler(35, 2, ref flag);
+			BepInExErrorLogInterpolatedStringHandler val10 = new BepInExErrorLogInterpolatedStringHandler(35, 2, out flag);
 			if (flag)
 			{
 				((BepInExLogInterpolatedStringHandler)val10).AppendLiteral("Failed to capture live catalog (");
@@ -210,7 +219,7 @@ public sealed class LiveCatalogCapture
 		}
 	}
 
-	private IReadOnlyList<CatalogItem> BuildItems(ItemManager itemManager)
+	private SystemCollections.IReadOnlyList<CatalogItem> BuildItems(ItemManager itemManager)
 	{
 		//IL_00e4: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00e9: Unknown result type (might be due to invalid IL or missing references)
@@ -220,9 +229,9 @@ public sealed class LiveCatalogCapture
 		{
 			return Array.Empty<CatalogItem>();
 		}
-		List<CatalogItem> list = new List<CatalogItem>();
-		HashSet<string> hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		Enumerator<InventoryItem> enumerator = itemManager.itemPrefabs.GetEnumerator();
+		SystemCollections.List<CatalogItem> list = new SystemCollections.List<CatalogItem>();
+		SystemCollections.HashSet<string> hashSet = new SystemCollections.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var enumerator = itemManager.itemPrefabs.GetEnumerator();
 		while (enumerator.MoveNext())
 		{
 			InventoryItem current = enumerator.Current;
@@ -238,10 +247,10 @@ public sealed class LiveCatalogCapture
 		return list.OrderBy<CatalogItem, string>((CatalogItem item) => item.DisplayName, StringComparer.OrdinalIgnoreCase).ToArray();
 	}
 
-	private IReadOnlyList<CatalogMonster> BuildMonsters(StatsManager statsManager)
+	private SystemCollections.IReadOnlyList<CatalogMonster> BuildMonsters(StatsManager statsManager)
 	{
-		List<CatalogMonster> list = new List<CatalogMonster>();
-		HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		SystemCollections.List<CatalogMonster> list = new SystemCollections.List<CatalogMonster>();
+		SystemCollections.HashSet<string> seen = new SystemCollections.HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (EnemyTile item in Object.FindObjectsOfType<EnemyTile>())
 		{
 			if (item != null)
@@ -255,7 +264,7 @@ public sealed class LiveCatalogCapture
 		}
 		if (statsManager != null)
 		{
-			Enumerator<EnemyBase> enumerator2 = statsManager.GetAllBosses().GetEnumerator();
+			var enumerator2 = statsManager.GetAllBosses().GetEnumerator();
 			while (enumerator2.MoveNext())
 			{
 				EnemyBase current2 = enumerator2.Current;
@@ -268,7 +277,7 @@ public sealed class LiveCatalogCapture
 		return list.OrderBy<CatalogMonster, string>((CatalogMonster monster) => monster.DisplayName, StringComparer.OrdinalIgnoreCase).ToArray();
 	}
 
-	private static void AddMonster(ICollection<CatalogMonster> results, ISet<string> seen, CatalogMonster monster)
+	private static void AddMonster(SystemCollections.ICollection<CatalogMonster> results, SystemCollections.ISet<string> seen, CatalogMonster monster)
 	{
 		if (seen.Add(monster.MonsterId))
 		{
@@ -276,7 +285,7 @@ public sealed class LiveCatalogCapture
 		}
 	}
 
-	private IReadOnlyList<CatalogMap> BuildMaps(MapManager mapManager)
+	private SystemCollections.IReadOnlyList<CatalogMap> BuildMaps(MapManager mapManager)
 	{
 		//IL_00b1: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00b6: Unknown result type (might be due to invalid IL or missing references)
@@ -293,7 +302,7 @@ public sealed class LiveCatalogCapture
 		CatalogMap[] array = new CatalogMap[1];
 		string[] obj = new string[2] { text, null };
 		Scene activeScene = SceneManager.GetActiveScene();
-		obj[1] = ((Scene)(ref activeScene)).name;
+		obj[1] = activeScene.name;
 		array[0] = new CatalogMap(NormalizeId(obj), text, worldDimensions, areaCount, exploredCells, length, mapManager.monoWorldEnvironType);
 		return array;
 	}
@@ -308,19 +317,20 @@ public sealed class LiveCatalogCapture
 		return new CharacterProfile("Player", SafeCall(() => statsManager.GetPlayerHealth(), ParseStatText(overworldUiManager.healthNumberText)), ParseStatText(overworldUiManager.attackNumberText), ParseStatText(overworldUiManager.armorNumberText), ParseStatText(overworldUiManager.speedNumberText), SafeCall(() => statsManager.GetGold(), ParseStatText(overworldUiManager.goldNumberText)), SafeCall<string>(() => ((object)statsManager.GetPlayerPosition()/*cast due to constrained. prefix*/).ToString(), "unknown"), SafeCall(() => overworldUiManager.GetNrOfInventoryItems(), 0), SafeCall(() => overworldUiManager.GetNrOfBackpackItems(), 0), SafeCall(() => overworldUiManager.GetNrOfOpenInventorySlots(), 0), (currentBoss == null) ? null : FirstValue(((EffectBase)currentBoss).effectName, ((EffectBase)currentBoss).nameTag, ((Object)currentBoss).name), SafeCall(() => statsManager.GetCurrentBossNumber(), 0));
 	}
 
-	private GameSnapshot BuildSnapshot(GameCatalog catalog, OverworldUIManager overworldUiManager, StatsManager statsManager, MapSnapshot mapSnapshot, ScreenState screenState)
+	private GameSnapshot BuildSnapshot(GameCatalog catalog, OverworldUIManager overworldUiManager, StatsManager statsManager, MapManager mapManager, PlayerController playerController, MapSnapshot mapSnapshot, ScreenState screenState, EventPopup eventPopup)
 	{
 		//IL_0034: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0039: Unknown result type (might be due to invalid IL or missing references)
 		CharacterProfile character = catalog.Character;
-		IReadOnlyList<InventoryItemSnapshot> inventory = BuildInventory(overworldUiManager);
+		SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventory = BuildInventory(overworldUiManager);
+		GameEventSnapshot eventContext = BuildEventContext(eventPopup, mapSnapshot, overworldUiManager, inventory, mapManager, playerController);
 		EncounterSnapshot encounter = ((!string.Equals(screenState.Screen, "live-battle", StringComparison.OrdinalIgnoreCase)) ? null : BuildEncounter(statsManager));
 		string screen = screenState.Screen;
 		Scene activeScene = SceneManager.GetActiveScene();
-		return new GameSnapshot(screen, ((Scene)(ref activeScene)).name, catalog.CapturedAt, new PlayerSnapshot(character?.Health ?? 0, character?.Health ?? 0, character?.Armor ?? 0, character?.Gold ?? 0, character?.CurrentBossNumber ?? 0), inventory, _scaffold.CreateActionsForScreen(screenState.Screen), encounter, mapSnapshot, catalog.Diagnostics);
+		return new GameSnapshot(screen, activeScene.name, catalog.CapturedAt, new PlayerSnapshot(character?.Health ?? 0, character?.Health ?? 0, character?.Armor ?? 0, character?.Gold ?? 0, character?.CurrentBossNumber ?? 0), inventory, _scaffold.CreateActionsForScreen(screenState.Screen, mapSnapshot), encounter, mapSnapshot, catalog.Diagnostics, eventContext);
 	}
 
-	private static MapSnapshot BuildMapSnapshot(IReadOnlyList<CatalogMap> maps, MapManager mapManager, PlayerController playerController, ScreenState screenState)
+	private static MapSnapshot BuildMapSnapshot(SystemCollections.IReadOnlyList<CatalogMap> maps, MapManager mapManager, PlayerController playerController, ScreenState screenState)
 	{
 		//IL_0070: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0062: Unknown result type (might be due to invalid IL or missing references)
@@ -362,18 +372,18 @@ public sealed class LiveCatalogCapture
 		MapArea val = SafeCall(() => mapManager.GetAreaContaining(currentGridPosition), null) ?? ((mapManager.mapAreas != null && mapManager.mapAreas.Count > 0) ? mapManager.mapAreas[0] : null);
 		if (((val != null) ? val.grid : null) == null)
 		{
-			return new MapSnapshot(maps[0].MapId, maps[0].AreaName, maps[0].EnemyTileCount, null, Array.Empty<string>(), Array.Empty<MapMoveOptionSnapshot>(), Array.Empty<MapNodeSnapshot>(), Array.Empty<MapEdgeSnapshot>());
+			return new MapSnapshot(maps[0].MapId, maps[0].AreaName, maps[0].EnemyTileCount, "local-neighborhood", null, Array.Empty<string>(), Array.Empty<MapMoveOptionSnapshot>(), Array.Empty<MapPointOfInterestSnapshot>(), Array.Empty<MapNodeSnapshot>(), Array.Empty<MapEdgeSnapshot>());
 		}
-		Dictionary<Vector2Int, MapNodeSnapshot> nodes = new Dictionary<Vector2Int, MapNodeSnapshot>();
-		Enumerator<List<CellData>> enumerator = val.grid.GetEnumerator();
+		SystemCollections.Dictionary<Vector2Int, MapNodeSnapshot> nodes = new SystemCollections.Dictionary<Vector2Int, MapNodeSnapshot>();
+		var enumerator = val.grid.GetEnumerator();
 		while (enumerator.MoveNext())
 		{
-			List<CellData> current = enumerator.Current;
+			var current = enumerator.Current;
 			if (current == null)
 			{
 				continue;
 			}
-			Enumerator<CellData> enumerator2 = current.GetEnumerator();
+			var enumerator2 = current.GetEnumerator();
 			while (enumerator2.MoveNext())
 			{
 				CellData cell = enumerator2.Current;
@@ -381,24 +391,24 @@ public sealed class LiveCatalogCapture
 				{
 					Vector2Int coordinate = new Vector2Int(cell.xCoord, cell.yCoord);
 					OccupantInfo occupantInfo = DescribeOccupant(mapManager, coordinate);
-					nodes[coordinate] = new MapNodeSnapshot(BuildMapNodeId(coordinate), ((Vector2Int)(ref coordinate)).x, ((Vector2Int)(ref coordinate)).y, SafeCall(() => cell.CanTraverse(), fallback: false), SafeCall(() => mapManager.playerExploredCoords.Contains(coordinate), fallback: false), SafeCall(() => cell.hasFog, fallback: false), SafeCall(() => mapManager.enemyTiles.ContainsKey(coordinate), fallback: false), SafeCall(() => mapManager.eventTiles.ContainsKey(coordinate), fallback: false), SafeCall<string>(() => ((object)(CellEnvironmentType)cell.cellEnvironmentType/*cast due to constrained. prefix*/).ToString(), cell.cellEnvironmentType.ToString(CultureInfo.InvariantCulture)), occupantInfo.Category, occupantInfo.Id, occupantInfo.Name);
+					nodes[coordinate] = new MapNodeSnapshot(BuildMapNodeId(coordinate), coordinate.x, coordinate.y, SafeCall(() => cell.CanTraverse(), fallback: false), SafeCall(() => mapManager.playerExploredCoords.Contains(coordinate), fallback: false), SafeCall(() => cell.hasFog, fallback: false), SafeCall(() => mapManager.enemyTiles.ContainsKey(coordinate), fallback: false), SafeCall(() => mapManager.eventTiles.ContainsKey(coordinate), fallback: false), SafeCall<string>(() => ((object)(CellEnvironmentType)cell.cellEnvironmentType/*cast due to constrained. prefix*/).ToString(), cell.cellEnvironmentType.ToString(CultureInfo.InvariantCulture)), occupantInfo.Category, occupantInfo.Id, occupantInfo.Name);
 				}
 			}
 		}
-		List<MapEdgeSnapshot> list = new List<MapEdgeSnapshot>();
-		KeyValuePair<Vector2Int, string>[] array = new KeyValuePair<Vector2Int, string>[4]
+		SystemCollections.List<MapEdgeSnapshot> list = new SystemCollections.List<MapEdgeSnapshot>();
+		SystemCollections.KeyValuePair<Vector2Int, string>[] array = new SystemCollections.KeyValuePair<Vector2Int, string>[4]
 		{
-			new KeyValuePair<Vector2Int, string>(new Vector2Int(0, 1), "up"),
-			new KeyValuePair<Vector2Int, string>(new Vector2Int(1, 0), "right"),
-			new KeyValuePair<Vector2Int, string>(new Vector2Int(0, -1), "down"),
-			new KeyValuePair<Vector2Int, string>(new Vector2Int(-1, 0), "left")
+			new SystemCollections.KeyValuePair<Vector2Int, string>(new Vector2Int(0, 1), "up"),
+			new SystemCollections.KeyValuePair<Vector2Int, string>(new Vector2Int(1, 0), "right"),
+			new SystemCollections.KeyValuePair<Vector2Int, string>(new Vector2Int(0, -1), "down"),
+			new SystemCollections.KeyValuePair<Vector2Int, string>(new Vector2Int(-1, 0), "left")
 		};
-		foreach (KeyValuePair<Vector2Int, MapNodeSnapshot> item in nodes)
+		foreach (SystemCollections.KeyValuePair<Vector2Int, MapNodeSnapshot> item in nodes)
 		{
-			KeyValuePair<Vector2Int, string>[] array2 = array;
+			SystemCollections.KeyValuePair<Vector2Int, string>[] array2 = array;
 			for (int num = 0; num < array2.Length; num++)
 			{
-				KeyValuePair<Vector2Int, string> keyValuePair = array2[num];
+				SystemCollections.KeyValuePair<Vector2Int, string> keyValuePair = array2[num];
 				Vector2Int val2 = item.Key + keyValuePair.Key;
 				if (nodes.TryGetValue(val2, out var value) && CanMoveBetween(playerController, item.Key, val2, item.Value, value))
 				{
@@ -417,9 +427,53 @@ public sealed class LiveCatalogCapture
 			return new MapMoveOptionSnapshot(edge.Direction, mapNodeSnapshot.NodeId, mapNodeSnapshot.X, mapNodeSnapshot.Y, mapNodeSnapshot.OccupantCategory, mapNodeSnapshot.OccupantId, mapNodeSnapshot.OccupantName);
 		}).OrderBy<MapMoveOptionSnapshot, string>((MapMoveOptionSnapshot move) => move.Direction, StringComparer.Ordinal)
 			.ToArray();
-		return new MapSnapshot(maps[0].MapId, maps[0].AreaName, maps[0].EnemyTileCount, currentNodeId, availableMoveNodeIds, availableMoves, (from node in nodes.Values
+		SystemCollections.HashSet<string> localNodeIds = BuildLocalViewNodeIds(currentGridPosition, currentNodeId, nodes.Values, availableMoveNodeIds);
+		MapPointOfInterestSnapshot[] knownPointsOfInterest = (from node in nodes.Values
+			where IsDiscoveredPointOfInterest(node, localNodeIds)
+			orderby string.Equals(node.NodeId, currentNodeId, StringComparison.Ordinal) descending, Mathf.Abs(node.X - currentGridPosition.x) + Mathf.Abs(node.Y - currentGridPosition.y), node.X, node.Y
+			select new MapPointOfInterestSnapshot(node.NodeId, node.X, node.Y, node.OccupantCategory, node.OccupantId, node.OccupantName, string.Equals(node.NodeId, currentNodeId, StringComparison.Ordinal), !node.HasFog, node.IsExplored)).ToArray();
+		MapNodeSnapshot[] array3 = (from node in nodes.Values
+			where localNodeIds.Contains(node.NodeId)
 			orderby node.X, node.Y
-			select node).ToArray(), list);
+			select node).ToArray();
+		MapEdgeSnapshot[] edges = list.Where((MapEdgeSnapshot edge) => localNodeIds.Contains(edge.FromNodeId) && localNodeIds.Contains(edge.ToNodeId)).OrderBy((MapEdgeSnapshot edge) => edge.FromNodeId, StringComparer.Ordinal).ThenBy((MapEdgeSnapshot edge) => edge.ToNodeId, StringComparer.Ordinal).ThenBy((MapEdgeSnapshot edge) => edge.Direction, StringComparer.Ordinal).ToArray();
+		return new MapSnapshot(maps[0].MapId, maps[0].AreaName, maps[0].EnemyTileCount, "local-neighborhood", currentNodeId, availableMoveNodeIds, availableMoves, knownPointsOfInterest, array3, edges);
+	}
+
+	private static SystemCollections.HashSet<string> BuildLocalViewNodeIds(Vector2Int currentGridPosition, string currentNodeId, SystemCollections.IEnumerable<MapNodeSnapshot> nodes, SystemCollections.IReadOnlyCollection<string> availableMoveNodeIds)
+	{
+		SystemCollections.HashSet<string> hashSet = new SystemCollections.HashSet<string>(availableMoveNodeIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+		if (!string.IsNullOrWhiteSpace(currentNodeId))
+		{
+			hashSet.Add(currentNodeId);
+		}
+		foreach (MapNodeSnapshot node in nodes)
+		{
+			if (node != null && IsNodeInLocalView(currentGridPosition, node, hashSet))
+			{
+				hashSet.Add(node.NodeId);
+			}
+		}
+		return hashSet;
+	}
+
+	private static bool IsNodeInLocalView(Vector2Int currentGridPosition, MapNodeSnapshot node, SystemCollections.ISet<string> localNodeIds)
+	{
+		if (localNodeIds.Contains(node.NodeId))
+		{
+			return true;
+		}
+		int num = Mathf.Abs(node.X - currentGridPosition.x) + Mathf.Abs(node.Y - currentGridPosition.y);
+		return num <= 1 && (node.IsExplored || !node.HasFog || node.HasEnemy || node.HasEvent);
+	}
+
+	private static bool IsDiscoveredPointOfInterest(MapNodeSnapshot node, SystemCollections.ISet<string> localNodeIds)
+	{
+		if (node == null || string.Equals(node.OccupantCategory, "none", StringComparison.Ordinal))
+		{
+			return false;
+		}
+		return localNodeIds.Contains(node.NodeId) || node.IsExplored || !node.HasFog;
 	}
 
 	private static OccupantInfo DescribeOccupant(MapManager mapManager, Vector2Int coordinate)
@@ -427,7 +481,7 @@ public sealed class LiveCatalogCapture
 		//IL_001b: Unknown result type (might be due to invalid IL or missing references)
 		//IL_011c: Unknown result type (might be due to invalid IL or missing references)
 		Tile enemyTileBase = default(Tile);
-		if (((mapManager != null) ? mapManager.enemyTiles : null) != null && mapManager.enemyTiles.TryGetValue(coordinate, ref enemyTileBase))
+		if (((mapManager != null) ? mapManager.enemyTiles : null) != null && mapManager.enemyTiles.TryGetValue(coordinate, out enemyTileBase))
 		{
 			EnemyTile enemyTile = SafeCall(() => ((Il2CppObjectBase)enemyTileBase).TryCast<EnemyTile>(), null);
 			if (enemyTile != null)
@@ -437,7 +491,7 @@ public sealed class LiveCatalogCapture
 			}
 		}
 		Tile eventTileBase = default(Tile);
-		if (((mapManager != null) ? mapManager.eventTiles : null) != null && mapManager.eventTiles.TryGetValue(coordinate, ref eventTileBase))
+		if (((mapManager != null) ? mapManager.eventTiles : null) != null && mapManager.eventTiles.TryGetValue(coordinate, out eventTileBase))
 		{
 			EventTile val2 = SafeCall(() => ((Il2CppObjectBase)eventTileBase).TryCast<EventTile>(), null);
 			if (val2 == null)
@@ -546,26 +600,27 @@ public sealed class LiveCatalogCapture
 		{
 			return false;
 		}
-		bool flag = Mathf.Abs(((Vector2Int)(ref from)).x - ((Vector2Int)(ref to)).x) + Mathf.Abs(((Vector2Int)(ref from)).y - ((Vector2Int)(ref to)).y) == 1;
+		bool flag = Mathf.Abs(from.x - to.x) + Mathf.Abs(from.y - to.y) == 1;
 		if (playerController == null)
 		{
 			return flag;
 		}
-		return SafeCall(() => playerController.IsMoveAllowed(new Vector2((float)((Vector2Int)(ref from)).x, (float)((Vector2Int)(ref from)).y), new Vector2((float)((Vector2Int)(ref to)).x, (float)((Vector2Int)(ref to)).y)), flag);
+		return SafeCall(() => playerController.IsMoveAllowed(new Vector2((float)from.x, (float)from.y), new Vector2((float)to.x, (float)to.y)), flag);
 	}
 
 	private static string BuildMapNodeId(Vector2Int coordinate)
 	{
-		return ((Vector2Int)(ref coordinate)).x.ToString(CultureInfo.InvariantCulture) + "," + ((Vector2Int)(ref coordinate)).y.ToString(CultureInfo.InvariantCulture);
+		return coordinate.x.ToString(CultureInfo.InvariantCulture) + "," + coordinate.y.ToString(CultureInfo.InvariantCulture);
 	}
 
-	private static ScreenState DetermineScreenState(PlayerControlsManager controlsManager, WorldsMenu worldsMenu, DifficultyToggle difficultyToggle, WaitingRoomDisplayer waitingRoom, ShowContinueWorld showContinueWorld, StatsManager statsManager, MapManager mapManager)
+	private static ScreenState DetermineScreenState(PlayerControlsManager controlsManager, WorldsMenu worldsMenu, DifficultyToggle difficultyToggle, WaitingRoomDisplayer waitingRoom, ShowContinueWorld showContinueWorld, StatsManager statsManager, MapManager mapManager, EventPopup eventPopup)
 	{
 		bool flag = IsActive((waitingRoom != null) ? ((Component)waitingRoom).gameObject : null) || IsActive((controlsManager != null) ? controlsManager.waitingRoomMenu : null);
 		bool flag2 = IsActive((difficultyToggle != null) ? difficultyToggle.difficultySelectionHolder : null) || IsActive((difficultyToggle != null) ? ((Component)difficultyToggle).gameObject : null);
 		bool flag3 = IsActive((worldsMenu != null) ? worldsMenu.worldsParent : null) || IsActive((controlsManager != null) ? controlsManager.worldsParent : null) || IsActive((worldsMenu != null) ? ((Component)worldsMenu).gameObject : null);
 		bool flag4 = IsActive((showContinueWorld != null) ? showContinueWorld.worldHolder : null) || IsActive((showContinueWorld != null) ? ((Component)showContinueWorld).gameObject : null);
 		bool flag5 = IsActive((controlsManager != null) ? controlsManager.mainMenuParent : null);
+		bool flag7 = IsActive((eventPopup != null) ? ((Component)eventPopup).gameObject : null);
 		object gameObject;
 		if (statsManager == null)
 		{
@@ -602,6 +657,10 @@ public sealed class LiveCatalogCapture
 		{
 			screen = "live-battle";
 		}
+		else if (flag7)
+		{
+			screen = "live-event";
+		}
 		else if (mapManager != null)
 		{
 			screen = "live-overworld";
@@ -614,13 +673,13 @@ public sealed class LiveCatalogCapture
 		return gameObject != null && gameObject.activeInHierarchy;
 	}
 
-	private static IReadOnlyList<InventoryItemSnapshot> BuildInventory(OverworldUIManager overworldUiManager)
+	private static SystemCollections.IReadOnlyList<InventoryItemSnapshot> BuildInventory(OverworldUIManager overworldUiManager)
 	{
 		if (overworldUiManager == null)
 		{
 			return Array.Empty<InventoryItemSnapshot>();
 		}
-		List<InventoryItemSnapshot> list = new List<InventoryItemSnapshot>();
+		SystemCollections.List<InventoryItemSnapshot> list = new SystemCollections.List<InventoryItemSnapshot>();
 		int num = SafeCall(() => overworldUiManager.GetNrOfInventorySlots(), 0);
 		for (int num2 = 0; num2 < num; num2++)
 		{
@@ -634,10 +693,400 @@ public sealed class LiveCatalogCapture
 			}
 			if (val != null)
 			{
-				list.Add(new InventoryItemSnapshot(NormalizeId(((EffectBase)val).nameTag, ((Object)val).name), FirstValue(((EffectBase)val).effectName, ((EffectBase)val).nameTag, ((Object)val).name), 1));
+				list.Add(BuildInventoryItemSnapshot(val, "inventory", num2));
 			}
 		}
 		return list;
+	}
+
+	private static GameEventSnapshot BuildEventContext(EventPopup eventPopup, MapSnapshot mapSnapshot, OverworldUIManager overworldUiManager, SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventoryItems, MapManager mapManager, PlayerController playerController)
+	{
+		if (eventPopup == null || !IsActive(((Component)eventPopup).gameObject))
+		{
+			return null;
+		}
+
+		InventoryStateSnapshot inventoryState = BuildInventoryState(overworldUiManager);
+		SystemCollections.List<EventChoiceSnapshot> list = new SystemCollections.List<EventChoiceSnapshot>();
+		EventTile currentEventTile = GetCurrentEventTile(mapManager, playerController);
+		MapNodeSnapshot currentNode = mapSnapshot?.Nodes?.FirstOrDefault((MapNodeSnapshot node) => string.Equals(node.NodeId, mapSnapshot.CurrentNodeId, StringComparison.Ordinal));
+		EventChooseEntry[] choiceEntries = GetChoiceEntries(eventPopup, currentEventTile);
+		if (ShouldUseChestItemChoices(currentEventTile, choiceEntries) && TryBuildChestChoices(list, currentEventTile, inventoryItems, inventoryState))
+		{
+		}
+		else if (ShouldUseInventorySelectionChoices(choiceEntries) && TryBuildInventorySelectionChoices(list, inventoryItems, inventoryState))
+		{
+		}
+		else
+		{
+			for (int i = 0; i < choiceEntries.Length; i++)
+			{
+				EventChoiceSnapshot eventChoiceSnapshot = BuildEventChoice(choiceEntries[i], i, inventoryItems, inventoryState);
+				if (eventChoiceSnapshot != null)
+				{
+					list.Add(eventChoiceSnapshot);
+				}
+			}
+		}
+
+		int? selectedOptionIndex = list.Where((EventChoiceSnapshot option) => option.IsSelected).Select((EventChoiceSnapshot option) => (int?)option.Index).FirstOrDefault();
+		if (!selectedOptionIndex.HasValue && BridgeActionQueueProcessor.SelectedEventOptionIndexOverride.HasValue && list.Count > 0)
+		{
+			selectedOptionIndex = Math.Max(0, Math.Min(list.Count - 1, BridgeActionQueueProcessor.SelectedEventOptionIndexOverride.Value));
+		}
+		if (!selectedOptionIndex.HasValue && list.Count > 0)
+		{
+			selectedOptionIndex = 0;
+		}
+		return new GameEventSnapshot(currentNode?.OccupantCategory ?? "event", GetText(((TMP_Text)eventPopup.titleEntry)), GetText(((TMP_Text)eventPopup.explainerEntry)), selectedOptionIndex, list, inventoryState);
+	}
+
+	private static bool ShouldUseInventorySelectionChoices(EventChooseEntry[] choiceEntries)
+	{
+		if (HasItemChoiceEntry(choiceEntries))
+		{
+			return false;
+		}
+
+		return GetActiveInventoryChoiceObjects().Length > 0;
+	}
+
+	private static bool ShouldUseChestItemChoices(EventTile currentEventTile, EventChooseEntry[] choiceEntries)
+	{
+		ChestTile chestTile = (currentEventTile == null) ? null : SafeCall(() => ((Il2CppObjectBase)currentEventTile).TryCast<ChestTile>(), null);
+		if (chestTile?.items == null || chestTile.items.Count == 0)
+		{
+			return false;
+		}
+
+		if (choiceEntries == null || choiceEntries.Length == 0)
+		{
+			return true;
+		}
+
+		for (int i = 0; i < choiceEntries.Length; i++)
+		{
+			if (IsItemChoiceEntry(choiceEntries[i]))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static bool TryBuildChestChoices(SystemCollections.ICollection<EventChoiceSnapshot> choices, EventTile currentEventTile, SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventoryItems, InventoryStateSnapshot inventoryState)
+	{
+		ChestTile chestTile = (currentEventTile == null) ? null : SafeCall(() => ((Il2CppObjectBase)currentEventTile).TryCast<ChestTile>(), null);
+		if (chestTile?.items == null || chestTile.items.Count == 0)
+		{
+			return false;
+		}
+
+		for (int i = 0; i < chestTile.items.Count; i++)
+		{
+			EffectBase effectBase = chestTile.items[i];
+			InventoryItem inventoryItem = (effectBase == null) ? null : SafeCall(() => ((Il2CppObjectBase)effectBase).TryCast<InventoryItem>(), null);
+			CatalogItem catalogItem = BuildCatalogItem(inventoryItem);
+			if (catalogItem != null)
+			{
+				choices.Add(new EventChoiceSnapshot("option-" + i.ToString(CultureInfo.InvariantCulture), i, catalogItem.DisplayName, catalogItem.Description, isEnabled: true, isSelected: false, catalogItem, BuildItemComparison(catalogItem, inventoryItems, inventoryState)));
+			}
+		}
+
+		return choices.Count > 0;
+	}
+
+	private static bool TryBuildInventorySelectionChoices(SystemCollections.ICollection<EventChoiceSnapshot> choices, SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventoryItems, InventoryStateSnapshot inventoryState)
+	{
+		GameObject[] activeInventoryChoiceObjects = GetActiveInventoryChoiceObjects();
+		GameObject currentSelectedGameObject = EventSystem.current?.currentSelectedGameObject;
+		for (int i = 0; i < activeInventoryChoiceObjects.Length; i++)
+		{
+			GameObject gameObject = activeInventoryChoiceObjects[i];
+			InventoryItem inventoryItem = GetInventoryItemFromSlotObject(gameObject);
+			if (inventoryItem == null)
+			{
+				continue;
+			}
+
+			CatalogItem catalogItem = BuildCatalogItem(inventoryItem);
+			if (catalogItem == null)
+			{
+				continue;
+			}
+
+			Button inventoryChoiceButton = GetInventoryChoiceButton(gameObject);
+			GameObject gameObject2 = ((inventoryChoiceButton != null) ? ((Component)inventoryChoiceButton).gameObject : gameObject);
+			bool isSelected = IsSelectionTarget(currentSelectedGameObject, gameObject2) || IsSelectionTarget(currentSelectedGameObject, gameObject);
+			choices.Add(new EventChoiceSnapshot("inventory-option-" + i.ToString(CultureInfo.InvariantCulture), i, catalogItem.DisplayName, catalogItem.Description, isEnabled: true, isSelected, catalogItem, BuildItemComparison(catalogItem, inventoryItems, inventoryState)));
+		}
+
+		return choices.Count > 0;
+	}
+
+	private static EventChoiceSnapshot BuildEventChoice(EventChooseEntry entry, int index, SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventoryItems, InventoryStateSnapshot inventoryState)
+	{
+		if (entry == null)
+		{
+			return null;
+		}
+
+		CatalogItem catalogItem = BuildCatalogItemFromChoice(entry);
+		string label = catalogItem?.DisplayName ?? GetEntryLabel(entry) ?? ("option-" + index.ToString(CultureInfo.InvariantCulture));
+		string description = catalogItem?.Description ?? string.Empty;
+		bool isSelected = IsSelectedChoice(entry);
+		EventItemComparisonSnapshot itemComparison = BuildItemComparison(catalogItem, inventoryItems, inventoryState);
+		return new EventChoiceSnapshot("option-" + index.ToString(CultureInfo.InvariantCulture), index, label, description, entry.enableInteraction, isSelected, catalogItem, itemComparison);
+	}
+
+	private static InventoryStateSnapshot BuildInventoryState(OverworldUIManager overworldUiManager)
+	{
+		if (overworldUiManager == null)
+		{
+			return new InventoryStateSnapshot(0, 0, 0, 0, 0, 0, Array.Empty<InventoryItemSnapshot>());
+		}
+
+		SystemCollections.IReadOnlyList<InventoryItemSnapshot> backpackItems = BuildBackpackItems(overworldUiManager);
+		int inventorySlotCount = SafeCall(() => overworldUiManager.GetNrOfInventorySlots(), 0);
+		int inventoryItemCount = SafeCall(() => overworldUiManager.GetNrOfInventoryItems(), 0);
+		int openInventorySlots = SafeCall(() => overworldUiManager.GetNrOfOpenInventorySlots(), Math.Max(0, inventorySlotCount - inventoryItemCount));
+		int backpackItemCount = SafeCall(() => overworldUiManager.GetNrOfBackpackItems(), backpackItems.Count);
+		int backpackSlotCount = SafeCall(() => overworldUiManager.backpackSlots?.Count ?? 0, backpackItems.Count);
+		int openBackpackSlots = Math.Max(0, backpackSlotCount - backpackItemCount);
+		return new InventoryStateSnapshot(inventoryItemCount, inventorySlotCount, openInventorySlots, backpackItemCount, backpackSlotCount, openBackpackSlots, backpackItems);
+	}
+
+	private static SystemCollections.IReadOnlyList<InventoryItemSnapshot> BuildBackpackItems(OverworldUIManager overworldUiManager)
+	{
+		if (overworldUiManager?.backpackSlots == null)
+		{
+			return Array.Empty<InventoryItemSnapshot>();
+		}
+
+		SystemCollections.List<InventoryItemSnapshot> list = new SystemCollections.List<InventoryItemSnapshot>();
+		for (int i = 0; i < overworldUiManager.backpackSlots.Count; i++)
+		{
+			GameObject gameObject = overworldUiManager.backpackSlots[i];
+			InventoryItem inventoryItem = GetInventoryItemFromSlotObject(gameObject);
+			if (inventoryItem != null)
+			{
+				list.Add(BuildInventoryItemSnapshot(inventoryItem, "backpack", i));
+			}
+		}
+
+		return list;
+	}
+
+	private static InventoryItem GetInventoryItemFromSlotObject(GameObject slotObject)
+	{
+		if (slotObject == null)
+		{
+			return null;
+		}
+
+		InventorySlot component = slotObject.GetComponent<InventorySlot>();
+		InventoryDisplayItem inventoryDisplayItem = component?.inventoryDisplayItem;
+		if (inventoryDisplayItem == null)
+		{
+			return null;
+		}
+
+		return SafeCall(() => inventoryDisplayItem.GetInventoryItem(), null);
+	}
+
+	private static InventoryItemSnapshot BuildInventoryItemSnapshot(InventoryItem item, string container, int slotIndex)
+	{
+		if (item == null)
+		{
+			return null;
+		}
+
+		return new InventoryItemSnapshot(NormalizeId(((EffectBase)item).nameTag, ((Object)item).name), FirstValue(((EffectBase)item).effectName, ((EffectBase)item).nameTag, ((Object)item).name), 1, container, slotIndex, FirstValue(((EffectBase)item).effectDesc, ((EffectBase)item).nameTag), ((object)item.itemType/*cast due to constrained. prefix*/).ToString(), ((object)item.itemRarity/*cast due to constrained. prefix*/).ToString(), ((EffectBase)item).attack, ((EffectBase)item).armor, ((EffectBase)item).speed, ((EffectBase)item).maxHealth, CollectTags(item.itemTags));
+	}
+
+	private static CatalogItem BuildCatalogItem(InventoryItem item)
+	{
+		if (item == null)
+		{
+			return null;
+		}
+
+		return new CatalogItem(NormalizeId(((EffectBase)item).nameTag, ((Object)item).name), FirstValue(((EffectBase)item).effectName, ((EffectBase)item).nameTag, ((Object)item).name), FirstValue(((EffectBase)item).effectDesc, ((EffectBase)item).nameTag), ((object)item.itemType/*cast due to constrained. prefix*/).ToString(), ((object)item.itemRarity/*cast due to constrained. prefix*/).ToString(), ((EffectBase)item).attack, ((EffectBase)item).armor, ((EffectBase)item).speed, ((EffectBase)item).maxHealth, item.spawnWeight, CollectTags(item.itemTags));
+	}
+
+	private static CatalogItem BuildCatalogItemFromChoice(EventChooseEntry entry)
+	{
+		ItemChooseEntry itemChooseEntry = SafeCall(() => ((Il2CppObjectBase)entry).TryCast<ItemChooseEntry>(), null);
+		if (itemChooseEntry == null)
+		{
+			return null;
+		}
+
+		EffectBase effectBase = SafeCall(() => itemChooseEntry.GetEffectBase(), null);
+		InventoryItem inventoryItem = (effectBase == null) ? null : SafeCall(() => ((Il2CppObjectBase)effectBase).TryCast<InventoryItem>(), null);
+		return BuildCatalogItem(inventoryItem);
+	}
+
+	private static bool IsItemChoiceEntry(EventChooseEntry entry)
+	{
+		return entry != null && SafeCall(() => ((Il2CppObjectBase)entry).TryCast<ItemChooseEntry>(), null) != null;
+	}
+
+	private static bool HasItemChoiceEntry(EventChooseEntry[] choiceEntries)
+	{
+		if (choiceEntries == null)
+		{
+			return false;
+		}
+
+		for (int i = 0; i < choiceEntries.Length; i++)
+		{
+			if (IsItemChoiceEntry(choiceEntries[i]))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static EventItemComparisonSnapshot BuildItemComparison(CatalogItem catalogItem, SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventoryItems, InventoryStateSnapshot inventoryState)
+	{
+		if (catalogItem == null)
+		{
+			return null;
+		}
+
+		int matchingInventoryCount = inventoryItems.Count((InventoryItemSnapshot item) => string.Equals(item.ItemId, catalogItem.ItemId, StringComparison.OrdinalIgnoreCase));
+		int matchingBackpackCount = inventoryState.BackpackItems.Count((InventoryItemSnapshot item) => string.Equals(item.ItemId, catalogItem.ItemId, StringComparison.OrdinalIgnoreCase));
+		bool hasFreeInventorySlot = inventoryState.OpenInventorySlots > 0;
+		bool hasFreeBackpackSlot = inventoryState.OpenBackpackSlots > 0;
+		return new EventItemComparisonSnapshot(matchingInventoryCount > 0, matchingBackpackCount > 0, matchingInventoryCount, matchingBackpackCount, hasFreeInventorySlot, hasFreeBackpackSlot, hasFreeInventorySlot || hasFreeBackpackSlot);
+	}
+
+	private static EventChooseEntry[] GetChoiceEntries(EventPopup eventPopup, EventTile currentEventTile)
+	{
+		SystemCollections.List<EventChooseEntry> list = new SystemCollections.List<EventChooseEntry>();
+		AddChoiceEntry(list, SafeCall(() => eventPopup.GetEventChooseEntry(), null));
+		AddChoiceEntry(list, SafeCall(() => eventPopup.GetEventChooseEntryAdditional(), null));
+		AddChoiceEntry(list, SafeCall(() => currentEventTile.GetEventChooseEntry(), null));
+		AddChoiceEntry(list, SafeCall(() => currentEventTile.GetEventChooseEntryAdditional(), null));
+		return list.ToArray();
+	}
+
+	private static GameObject[] GetActiveInventoryChoiceObjects()
+	{
+		SystemCollections.List<GameObject> list = new SystemCollections.List<GameObject>();
+		foreach (InventorySlot item in Object.FindObjectsOfType<InventorySlot>())
+		{
+			GameObject gameObject = ((item != null) ? ((Component)item).gameObject : null);
+			if (gameObject != null && gameObject.activeInHierarchy && GetInventoryItemFromSlotObject(gameObject) != null)
+			{
+				list.Add(gameObject);
+			}
+		}
+
+		return list.OrderByDescending((GameObject gameObject) => gameObject.transform.position.y).ThenBy((GameObject gameObject) => gameObject.transform.position.x).ToArray();
+	}
+
+	private static Button GetInventoryChoiceButton(GameObject slotObject)
+	{
+		if (slotObject == null)
+		{
+			return null;
+		}
+
+		Button component = slotObject.GetComponent<Button>();
+		return component ?? slotObject.GetComponentInChildren<Button>(includeInactive: true);
+	}
+
+	private static bool IsSelectionTarget(GameObject selectedObject, GameObject candidateObject)
+	{
+		if (selectedObject == null || candidateObject == null)
+		{
+			return false;
+		}
+
+		Transform transform = selectedObject.transform;
+		Transform transform2 = candidateObject.transform;
+		return transform == transform2 || transform.IsChildOf(transform2) || transform2.IsChildOf(transform);
+	}
+
+	private static void AddChoiceEntry(SystemCollections.ICollection<EventChooseEntry> entries, EventChooseEntry entry)
+	{
+		if (entry == null)
+		{
+			return;
+		}
+
+		foreach (EventChooseEntry existing in entries)
+		{
+			if (((Il2CppObjectBase)existing).Pointer == ((Il2CppObjectBase)entry).Pointer)
+			{
+				return;
+			}
+		}
+
+		entries.Add(entry);
+	}
+
+	private static string GetEntryLabel(EventChooseEntry entry)
+	{
+		Button button = SafeCall(() => entry.GetButton(), null);
+		if (button == null)
+		{
+			return null;
+		}
+
+		TextMeshProUGUI[] componentsInChildren = ((Component)button).GetComponentsInChildren<TextMeshProUGUI>(includeInactive: true);
+		foreach (TextMeshProUGUI val in componentsInChildren)
+		{
+			string text = GetText((TMP_Text)val);
+			if (!string.IsNullOrWhiteSpace(text))
+			{
+				return text;
+			}
+		}
+
+		return null;
+	}
+
+	private static bool IsSelectedChoice(EventChooseEntry entry)
+	{
+		Button button = SafeCall(() => entry.GetButton(), null);
+		GameObject currentSelectedGameObject = EventSystem.current?.currentSelectedGameObject;
+		if (button == null || currentSelectedGameObject == null)
+		{
+			return false;
+		}
+
+		Transform transform = ((Component)button).transform;
+		Transform transform2 = currentSelectedGameObject.transform;
+		return transform2 == transform || transform2.IsChildOf(transform);
+	}
+
+	private static string GetText(TMP_Text label)
+	{
+		return string.IsNullOrWhiteSpace(label?.text) ? string.Empty : label.text.Trim();
+	}
+
+	private static EventTile GetCurrentEventTile(MapManager mapManager, PlayerController playerController)
+	{
+		if (mapManager == null || playerController == null || mapManager.eventTiles == null)
+		{
+			return null;
+		}
+
+		Vector2 playerGridPosition = playerController.GetPlayerGridPosition();
+		Vector2Int coordinate = new Vector2Int(Mathf.RoundToInt(playerGridPosition.x), Mathf.RoundToInt(playerGridPosition.y));
+		Tile eventTileBase = default(Tile);
+		if (!mapManager.eventTiles.TryGetValue(coordinate, out eventTileBase))
+		{
+			return null;
+		}
+
+		return SafeCall(() => ((Il2CppObjectBase)eventTileBase).TryCast<EventTile>(), null);
 	}
 
 	private static EncounterSnapshot BuildEncounter(StatsManager statsManager)
@@ -654,12 +1103,12 @@ public sealed class LiveCatalogCapture
 		return new EncounterSnapshot(NormalizeId(((EffectBase)currentBoss).nameTag, ((Object)currentBoss).name), FirstValue(((EffectBase)currentBoss).effectName, ((EffectBase)currentBoss).nameTag, ((Object)currentBoss).name), statsManager.GetCurrentBossNumber());
 	}
 
-	private static IReadOnlyList<string> CollectTags(List<ItemTag> tags)
+	private static SystemCollections.IReadOnlyList<string> CollectTags(Il2CppSystem.Collections.Generic.List<ItemTag> tags)
 	{
 		//IL_0012: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0017: Unknown result type (might be due to invalid IL or missing references)
-		List<string> list = new List<string>();
-		Enumerator<ItemTag> enumerator = tags.GetEnumerator();
+		SystemCollections.List<string> list = new SystemCollections.List<string>();
+		var enumerator = tags.GetEnumerator();
 		while (enumerator.MoveNext())
 		{
 			list.Add(((object)enumerator.Current/*cast due to constrained. prefix*/).ToString());

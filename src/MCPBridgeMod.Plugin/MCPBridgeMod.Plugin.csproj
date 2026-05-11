@@ -4,11 +4,11 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="BepInEx.Core">
-      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\BepInEx.Core.dll</HintPath>
+      <HintPath>..\..\deploy\HeIsComing-BepInExBridge-BE755\BepInEx\core\BepInEx.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="BepInEx.Unity.IL2CPP">
-      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath>
+      <HintPath>..\..\deploy\HeIsComing-BepInExBridge-BE755\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
@@ -24,7 +24,7 @@
       <Private>false</Private>
     </Reference>
     <Reference Include="Il2CppInterop.Runtime">
-      <HintPath>..\..\vendor\BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.755+3fab71a\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath>
+      <HintPath>..\..\deploy\HeIsComing-BepInExBridge-BE755\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
@@ -33,6 +33,10 @@
     </Reference>
     <Reference Include="Unity.TextMeshPro">
       <HintPath>..\..\vendor\interop-generated\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\vendor\interop-generated\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

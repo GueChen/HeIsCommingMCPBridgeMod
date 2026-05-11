@@ -34,7 +34,7 @@ public sealed class MCPBridgePlugin : BasePlugin
 		_liveCatalogCapture.Capture("plugin-load");
 		ManualLogSource log = ((BasePlugin)this).Log;
 		bool flag = default(bool);
-		BepInExInfoLogInterpolatedStringHandler val = new BepInExInfoLogInterpolatedStringHandler(43, 2, ref flag);
+		BepInExInfoLogInterpolatedStringHandler val = new BepInExInfoLogInterpolatedStringHandler(43, 2, out flag);
 		if (flag)
 		{
 			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>("He Is Coming MCP Bridge");
