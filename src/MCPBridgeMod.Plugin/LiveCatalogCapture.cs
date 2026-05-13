@@ -98,7 +98,10 @@ public sealed class LiveCatalogCapture
 			ShowContinueWorld val7 = Object.FindObjectOfType<ShowContinueWorld>();
 			PlayerController val8 = ((val3 != null) ? val3.GetPlayerController() : null) ?? Object.FindObjectOfType<PlayerController>();
 			EventPopup val9 = Object.FindObjectOfType<EventPopup>();
-			ScreenState screenState = DetermineScreenState(controlsManager, val5, difficultyToggle, val6, val7, val3, val4, val9);
+			EventTile currentEventTile = GetCurrentEventTile(val4, val8);
+			EventChooseEntry[] choiceEntries = GetChoiceEntries(val9, currentEventTile);
+			GameObject[] activeInventoryChoiceObjects = GetActiveInventoryChoiceObjects();
+			ScreenState screenState = DetermineScreenState(controlsManager, val5, difficultyToggle, val6, val7, val3, val4, val8, val9);
 			SystemCollections.IReadOnlyList<CatalogItem> readOnlyList = BuildItems(val2);
 			SystemCollections.IReadOnlyList<CatalogMonster> readOnlyList2 = BuildMonsters(val3);
 			SystemCollections.IReadOnlyList<CatalogMap> readOnlyList3 = BuildMaps(val4);
@@ -129,6 +132,13 @@ public sealed class LiveCatalogCapture
 			obj["showContinueWorld"] = flag.ToString();
 			flag = IsActive((val9 != null) ? ((Component)val9).gameObject : null);
 			obj["eventPopup"] = flag.ToString();
+			flag = SafeCall(() => controlsManager != null && controlsManager.isViewingEventPopup, false);
+			obj["controlsViewingEventPopup"] = flag.ToString();
+			obj["currentEventTileType"] = currentEventTile?.GetType().Name ?? "none";
+			obj["currentEventTileName"] = SafeCall(() => (currentEventTile != null) ? ((Object)currentEventTile).name : null, null) ?? "none";
+			obj["eventChoiceCount"] = choiceEntries.Length.ToString(CultureInfo.InvariantCulture);
+			obj["inventoryChoiceCount"] = activeInventoryChoiceObjects.Length.ToString(CultureInfo.InvariantCulture);
+			obj["currentInventoryChoiceIndex"] = GetCurrentInventoryChoiceIndex(activeInventoryChoiceObjects).ToString(CultureInfo.InvariantCulture);
 			obj["currentStoryWorld"] = SafeCall<string>(delegate
 			{
 				//IL_001f: Unknown result type (might be due to invalid IL or missing references)
@@ -323,7 +333,7 @@ public sealed class LiveCatalogCapture
 		//IL_0039: Unknown result type (might be due to invalid IL or missing references)
 		CharacterProfile character = catalog.Character;
 		SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventory = BuildInventory(overworldUiManager);
-		GameEventSnapshot eventContext = BuildEventContext(eventPopup, mapSnapshot, overworldUiManager, inventory, mapManager, playerController);
+		GameEventSnapshot eventContext = BuildEventContext(eventPopup, mapSnapshot, overworldUiManager, inventory, mapManager, playerController, Object.FindObjectOfType<PlayerControlsManager>(), string.Equals(screenState.Screen, "live-event", StringComparison.OrdinalIgnoreCase));
 		EncounterSnapshot encounter = ((!string.Equals(screenState.Screen, "live-battle", StringComparison.OrdinalIgnoreCase)) ? null : BuildEncounter(statsManager));
 		string screen = screenState.Screen;
 		Scene activeScene = SceneManager.GetActiveScene();
@@ -526,6 +536,14 @@ public sealed class LiveCatalogCapture
 		{
 			return "CampfireTile";
 		}
+		if (SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<HomeHouseTile>(), null) != null)
+		{
+			return "HomeHouseTile";
+		}
+		if (SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<LargeBonfireTile>(), null) != null)
+		{
+			return "LargeBonfireTile";
+		}
 		if (SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<FerrypointTile>(), null) != null || SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<NightGateTile>(), null) != null)
 		{
 			return "TravelTile";
@@ -555,6 +573,14 @@ public sealed class LiveCatalogCapture
 		{
 			return "campfire";
 		}
+		if (SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<HomeHouseTile>(), null) != null)
+		{
+			return "home";
+		}
+		if (SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<LargeBonfireTile>(), null) != null)
+		{
+			return "campfire";
+		}
 		if (SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<FerrypointTile>(), null) != null || SafeCall(() => ((Il2CppObjectBase)eventTile).TryCast<NightGateTile>(), null) != null)
 		{
 			return "travel";
@@ -579,6 +605,14 @@ public sealed class LiveCatalogCapture
 				return "fortune_teller";
 			}
 			if (text.Contains("campfire", StringComparison.Ordinal))
+			{
+				return "campfire";
+			}
+			if (text.Contains("homehouse", StringComparison.Ordinal) || text.Contains("home", StringComparison.Ordinal) || text.Contains("house", StringComparison.Ordinal))
+			{
+				return "home";
+			}
+			if (text.Contains("bonfire", StringComparison.Ordinal))
 			{
 				return "campfire";
 			}
@@ -613,14 +647,14 @@ public sealed class LiveCatalogCapture
 		return coordinate.x.ToString(CultureInfo.InvariantCulture) + "," + coordinate.y.ToString(CultureInfo.InvariantCulture);
 	}
 
-	private static ScreenState DetermineScreenState(PlayerControlsManager controlsManager, WorldsMenu worldsMenu, DifficultyToggle difficultyToggle, WaitingRoomDisplayer waitingRoom, ShowContinueWorld showContinueWorld, StatsManager statsManager, MapManager mapManager, EventPopup eventPopup)
+	private static ScreenState DetermineScreenState(PlayerControlsManager controlsManager, WorldsMenu worldsMenu, DifficultyToggle difficultyToggle, WaitingRoomDisplayer waitingRoom, ShowContinueWorld showContinueWorld, StatsManager statsManager, MapManager mapManager, PlayerController playerController, EventPopup eventPopup)
 	{
 		bool flag = IsActive((waitingRoom != null) ? ((Component)waitingRoom).gameObject : null) || IsActive((controlsManager != null) ? controlsManager.waitingRoomMenu : null);
 		bool flag2 = IsActive((difficultyToggle != null) ? difficultyToggle.difficultySelectionHolder : null) || IsActive((difficultyToggle != null) ? ((Component)difficultyToggle).gameObject : null);
 		bool flag3 = IsActive((worldsMenu != null) ? worldsMenu.worldsParent : null) || IsActive((controlsManager != null) ? controlsManager.worldsParent : null) || IsActive((worldsMenu != null) ? ((Component)worldsMenu).gameObject : null);
 		bool flag4 = IsActive((showContinueWorld != null) ? showContinueWorld.worldHolder : null) || IsActive((showContinueWorld != null) ? ((Component)showContinueWorld).gameObject : null);
 		bool flag5 = IsActive((controlsManager != null) ? controlsManager.mainMenuParent : null);
-		bool flag7 = IsActive((eventPopup != null) ? ((Component)eventPopup).gameObject : null);
+		bool flag7 = HasLiveEventContext(eventPopup, mapManager, playerController, controlsManager);
 		object gameObject;
 		if (statsManager == null)
 		{
@@ -699,18 +733,18 @@ public sealed class LiveCatalogCapture
 		return list;
 	}
 
-	private static GameEventSnapshot BuildEventContext(EventPopup eventPopup, MapSnapshot mapSnapshot, OverworldUIManager overworldUiManager, SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventoryItems, MapManager mapManager, PlayerController playerController)
+	private static GameEventSnapshot BuildEventContext(EventPopup eventPopup, MapSnapshot mapSnapshot, OverworldUIManager overworldUiManager, SystemCollections.IReadOnlyList<InventoryItemSnapshot> inventoryItems, MapManager mapManager, PlayerController playerController, PlayerControlsManager controlsManager, bool forceForLiveEventScreen)
 	{
-		if (eventPopup == null || !IsActive(((Component)eventPopup).gameObject))
+		EventTile currentEventTile = GetCurrentEventTile(mapManager, playerController);
+		EventChooseEntry[] choiceEntries = GetChoiceEntries(eventPopup, currentEventTile);
+		if (!forceForLiveEventScreen && !HasLiveEventContext(eventPopup, currentEventTile, choiceEntries, controlsManager))
 		{
 			return null;
 		}
 
 		InventoryStateSnapshot inventoryState = BuildInventoryState(overworldUiManager);
 		SystemCollections.List<EventChoiceSnapshot> list = new SystemCollections.List<EventChoiceSnapshot>();
-		EventTile currentEventTile = GetCurrentEventTile(mapManager, playerController);
 		MapNodeSnapshot currentNode = mapSnapshot?.Nodes?.FirstOrDefault((MapNodeSnapshot node) => string.Equals(node.NodeId, mapSnapshot.CurrentNodeId, StringComparison.Ordinal));
-		EventChooseEntry[] choiceEntries = GetChoiceEntries(eventPopup, currentEventTile);
 		if (ShouldUseChestItemChoices(currentEventTile, choiceEntries) && TryBuildChestChoices(list, currentEventTile, inventoryItems, inventoryState))
 		{
 		}
@@ -738,7 +772,13 @@ public sealed class LiveCatalogCapture
 		{
 			selectedOptionIndex = 0;
 		}
-		return new GameEventSnapshot(currentNode?.OccupantCategory ?? "event", GetText(((TMP_Text)eventPopup.titleEntry)), GetText(((TMP_Text)eventPopup.explainerEntry)), selectedOptionIndex, list, inventoryState);
+		string text = GetText((eventPopup != null) ? ((TMP_Text)eventPopup.titleEntry) : null);
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			text = currentNode?.OccupantName ?? currentNode?.OccupantCategory ?? "event";
+		}
+		string text2 = GetText((eventPopup != null) ? ((TMP_Text)eventPopup.explainerEntry) : null);
+		return new GameEventSnapshot(currentNode?.OccupantCategory ?? "event", text, text2, selectedOptionIndex, list, inventoryState);
 	}
 
 	private static bool ShouldUseInventorySelectionChoices(EventChooseEntry[] choiceEntries)
@@ -748,7 +788,8 @@ public sealed class LiveCatalogCapture
 			return false;
 		}
 
-		return GetActiveInventoryChoiceObjects().Length > 0;
+		GameObject[] activeInventoryChoiceObjects = GetActiveInventoryChoiceObjects();
+		return activeInventoryChoiceObjects.Length > 0;
 	}
 
 	private static bool ShouldUseChestItemChoices(EventTile currentEventTile, EventChooseEntry[] choiceEntries)
@@ -960,9 +1001,34 @@ public sealed class LiveCatalogCapture
 
 		int matchingInventoryCount = inventoryItems.Count((InventoryItemSnapshot item) => string.Equals(item.ItemId, catalogItem.ItemId, StringComparison.OrdinalIgnoreCase));
 		int matchingBackpackCount = inventoryState.BackpackItems.Count((InventoryItemSnapshot item) => string.Equals(item.ItemId, catalogItem.ItemId, StringComparison.OrdinalIgnoreCase));
+		int matchingExactInventoryCount = inventoryItems.Count((InventoryItemSnapshot item) => IsExactInventoryMatch(item, catalogItem));
+		int matchingExactBackpackCount = inventoryState.BackpackItems.Count((InventoryItemSnapshot item) => IsExactInventoryMatch(item, catalogItem));
+		int matchingExactTotalCount = matchingExactInventoryCount + matchingExactBackpackCount;
 		bool hasFreeInventorySlot = inventoryState.OpenInventorySlots > 0;
 		bool hasFreeBackpackSlot = inventoryState.OpenBackpackSlots > 0;
-		return new EventItemComparisonSnapshot(matchingInventoryCount > 0, matchingBackpackCount > 0, matchingInventoryCount, matchingBackpackCount, hasFreeInventorySlot, hasFreeBackpackSlot, hasFreeInventorySlot || hasFreeBackpackSlot);
+		return new EventItemComparisonSnapshot(matchingInventoryCount > 0, matchingBackpackCount > 0, matchingInventoryCount, matchingBackpackCount, matchingExactInventoryCount, matchingExactBackpackCount, matchingExactTotalCount, matchingExactTotalCount >= 2, hasFreeInventorySlot, hasFreeBackpackSlot, hasFreeInventorySlot || hasFreeBackpackSlot);
+	}
+
+	private static bool IsExactInventoryMatch(InventoryItemSnapshot inventoryItem, CatalogItem catalogItem)
+	{
+		if (inventoryItem == null || catalogItem == null)
+		{
+			return false;
+		}
+
+		return string.Equals(inventoryItem.ItemId, catalogItem.ItemId, StringComparison.OrdinalIgnoreCase) && string.Equals(inventoryItem.DisplayName, catalogItem.DisplayName, StringComparison.OrdinalIgnoreCase) && string.Equals(inventoryItem.Description, catalogItem.Description, StringComparison.OrdinalIgnoreCase) && string.Equals(inventoryItem.ItemType, catalogItem.ItemType, StringComparison.OrdinalIgnoreCase) && string.Equals(inventoryItem.Rarity, catalogItem.Rarity, StringComparison.OrdinalIgnoreCase) && inventoryItem.Attack == catalogItem.Attack && inventoryItem.Armor == catalogItem.Armor && inventoryItem.Speed == catalogItem.Speed && inventoryItem.MaxHealth == catalogItem.MaxHealth && HaveEquivalentTags(inventoryItem.Tags, catalogItem.Tags);
+	}
+
+	private static bool HaveEquivalentTags(SystemCollections.IReadOnlyList<string> left, SystemCollections.IReadOnlyList<string> right)
+	{
+		left ??= Array.Empty<string>();
+		right ??= Array.Empty<string>();
+		if (left.Count != right.Count)
+		{
+			return false;
+		}
+
+		return left.Select((string tag) => tag ?? string.Empty).OrderBy((string tag) => tag, StringComparer.OrdinalIgnoreCase).SequenceEqual(right.Select((string tag) => tag ?? string.Empty).OrderBy((string tag) => tag, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
 	}
 
 	private static EventChooseEntry[] GetChoiceEntries(EventPopup eventPopup, EventTile currentEventTile)
@@ -972,7 +1038,16 @@ public sealed class LiveCatalogCapture
 		AddChoiceEntry(list, SafeCall(() => eventPopup.GetEventChooseEntryAdditional(), null));
 		AddChoiceEntry(list, SafeCall(() => currentEventTile.GetEventChooseEntry(), null));
 		AddChoiceEntry(list, SafeCall(() => currentEventTile.GetEventChooseEntryAdditional(), null));
+		foreach (EventChooseEntry activeSceneEventChoice in GetActiveSceneEventChoices())
+		{
+			AddChoiceEntry(list, activeSceneEventChoice);
+		}
 		return list.ToArray();
+	}
+
+	private static EventChooseEntry[] GetActiveSceneEventChoices()
+	{
+		return Object.FindObjectsOfType<EventChooseEntry>().Where((EventChooseEntry entry) => entry != null && SafeCall(() => ((Component)entry).gameObject.activeInHierarchy, false)).ToArray();
 	}
 
 	private static GameObject[] GetActiveInventoryChoiceObjects()
@@ -999,6 +1074,22 @@ public sealed class LiveCatalogCapture
 
 		Button component = slotObject.GetComponent<Button>();
 		return component ?? slotObject.GetComponentInChildren<Button>(includeInactive: true);
+	}
+
+	private static int GetCurrentInventoryChoiceIndex(GameObject[] activeInventoryChoiceObjects)
+	{
+		GameObject currentSelectedGameObject = EventSystem.current?.currentSelectedGameObject;
+		for (int i = 0; i < activeInventoryChoiceObjects.Length; i++)
+		{
+			GameObject gameObject = activeInventoryChoiceObjects[i];
+			Button inventoryChoiceButton = GetInventoryChoiceButton(gameObject);
+			if (IsSelectionTarget(currentSelectedGameObject, gameObject) || IsSelectionTarget(currentSelectedGameObject, (inventoryChoiceButton != null) ? ((Component)inventoryChoiceButton).gameObject : null))
+			{
+				return i;
+			}
+		}
+
+		return -1;
 	}
 
 	private static bool IsSelectionTarget(GameObject selectedObject, GameObject candidateObject)
@@ -1089,6 +1180,38 @@ public sealed class LiveCatalogCapture
 		return SafeCall(() => ((Il2CppObjectBase)eventTileBase).TryCast<EventTile>(), null);
 	}
 
+	private static bool HasLiveEventContext(EventPopup eventPopup, MapManager mapManager, PlayerController playerController, PlayerControlsManager controlsManager)
+	{
+		EventTile currentEventTile = GetCurrentEventTile(mapManager, playerController);
+		EventChooseEntry[] choiceEntries = GetChoiceEntries(eventPopup, currentEventTile);
+		return HasLiveEventContext(eventPopup, currentEventTile, choiceEntries, controlsManager);
+	}
+
+	private static bool HasLiveEventContext(EventPopup eventPopup, EventTile currentEventTile, EventChooseEntry[] choiceEntries, PlayerControlsManager controlsManager)
+	{
+		if (IsActive((eventPopup != null) ? ((Component)eventPopup).gameObject : null))
+		{
+			return true;
+		}
+
+		if (!SafeCall(() => controlsManager != null && controlsManager.isViewingEventPopup, false))
+		{
+			return false;
+		}
+
+		if (currentEventTile == null)
+		{
+			return false;
+		}
+
+		if (choiceEntries.Length > 0)
+		{
+			return true;
+		}
+
+		return ShouldUseInventorySelectionChoices(choiceEntries);
+	}
+
 	private static EncounterSnapshot BuildEncounter(StatsManager statsManager)
 	{
 		if (statsManager == null)
@@ -1100,7 +1223,18 @@ public sealed class LiveCatalogCapture
 		{
 			return null;
 		}
-		return new EncounterSnapshot(NormalizeId(((EffectBase)currentBoss).nameTag, ((Object)currentBoss).name), FirstValue(((EffectBase)currentBoss).effectName, ((EffectBase)currentBoss).nameTag, ((Object)currentBoss).name), statsManager.GetCurrentBossNumber());
+		BattleManager battleManager = statsManager.battleManager;
+		BattleSystem battleSystem = ((battleManager != null) ? battleManager.battleSystem : null);
+		EnemyStats enemyStats = ((battleSystem != null) ? battleSystem._enemyStats : null);
+		int turnNumber = SafeCall(() => (battleSystem != null) ? battleSystem.GetTurnCounter() : 0, 0);
+		string currentTurn = SafeCall(() => (battleSystem != null) ? ((object)battleSystem.GetBattleTurn()).ToString() : null, null);
+		string battlePhase = SafeCall(() => (battleSystem != null) ? ((object)battleSystem._battlePhase).ToString() : null, null);
+		bool? isPaused = SafeCall(() => (battleSystem != null) ? new bool?(battleSystem.isPaused) : null, (bool?)null);
+		int? playerHealth = SafeCall(() => (statsManager != null) ? new int?(statsManager.GetPlayerHealth()) : null, (int?)null);
+		int? playerStartHealth = SafeCall(() => (battleSystem != null) ? new int?(battleSystem.GetPlayerStartHealth()) : null, (int?)null);
+		int? enemyHealth = SafeCall(() => (enemyStats != null) ? new int?(enemyStats.health) : null, (int?)null);
+		int? enemyMaxHealth = SafeCall(() => (enemyStats != null) ? new int?(enemyStats.maxHealth) : null, (int?)null);
+		return new EncounterSnapshot(NormalizeId(((EffectBase)currentBoss).nameTag, ((Object)currentBoss).name), FirstValue(((EffectBase)currentBoss).effectName, ((EffectBase)currentBoss).nameTag, ((Object)currentBoss).name), turnNumber, statsManager.GetCurrentBossNumber(), currentTurn, battlePhase, isPaused, playerHealth, playerStartHealth, enemyHealth, enemyMaxHealth);
 	}
 
 	private static SystemCollections.IReadOnlyList<string> CollectTags(Il2CppSystem.Collections.Generic.List<ItemTag> tags)

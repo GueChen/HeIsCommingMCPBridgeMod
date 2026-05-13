@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using BepInEx.Core.Logging.Interpolation;
 using BepInEx.Logging;
 using Il2CppInterop.Runtime.InteropTypes;
 using MCPBridgeMod.Contracts;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -15,6 +17,28 @@ namespace MCPBridgeMod.Plugin;
 
 public sealed class BridgeActionQueueProcessor
 {
+	private sealed class BattleControlButton
+	{
+		public Button Button { get; }
+
+		public string ObjectName { get; }
+
+		public string ObjectPath { get; }
+
+		public string Label { get; }
+
+		public Vector3 Position { get; }
+
+		public BattleControlButton(Button button, string objectName, string objectPath, string label, Vector3 position)
+		{
+			Button = button;
+			ObjectName = objectName;
+			ObjectPath = objectPath;
+			Label = label;
+			Position = position;
+		}
+	}
+
 	private static readonly JsonSerializerOptions SerializerOptions = new JsonSerializerOptions
 	{
 		PropertyNameCaseInsensitive = true
@@ -189,7 +213,7 @@ public sealed class BridgeActionQueueProcessor
 			}, text, "ToggleMapView(false)");
 		case "attack":
 		case "end_turn":
-			return TryBattleAdvance(battleSystem, val2, text);
+			return TryBattleAdvance(battleSystem, val, val2, text);
 		case "interact":
 			return TryInteract(val2, playerController, val3, text);
 		case "refresh_state":
@@ -232,8 +256,20 @@ public sealed class BridgeActionQueueProcessor
 			_log.LogInfo((object)("Resolved current EventTile for '" + actionId + "' with tilePopupActive=" + HasActiveEventPopup(currentEventTile) + " globalPopupActive=" + (activeEventPopup != null) + "."));
 		}
 
+		bool hasTilePopupActive = HasActiveEventPopup(currentEventTile);
 		EventChooseEntry[] visibleEventChoices = GetVisibleEventChoices(currentEventTile, activeEventPopup);
-		if (TryResolveCurrentInventoryChoice(controlsManager, visibleEventChoices, actionId))
+		if (TryResolveCurrentInventoryChoice(controlsManager, currentEventTile, activeEventPopup, visibleEventChoices, actionId))
+		{
+			return true;
+		}
+
+		if (currentEventTile != null && !hasTilePopupActive && activeEventPopup != null && TryTriggerCurrentEventTile(currentEventTile, actionId))
+		{
+			return true;
+		}
+
+		ChestTile chestTile = (currentEventTile == null) ? null : SafeCall(() => ((Il2CppObjectBase)currentEventTile).TryCast<ChestTile>(), null);
+		if (IsChestLikeEventTile(currentEventTile, chestTile) && (chestTile == null || !ShouldUseChestItemChoices(chestTile, visibleEventChoices)) && TryTriggerCurrentEventTile(currentEventTile, actionId))
 		{
 			return true;
 		}
@@ -270,6 +306,27 @@ public sealed class BridgeActionQueueProcessor
 
 		_log.LogInfo((object)("Executed '" + actionId + "' via EventTile.TriggerTile()."));
 		return true;
+	}
+
+	private static bool IsChestLikeEventTile(EventTile currentEventTile, ChestTile chestTile)
+	{
+		if (chestTile != null)
+		{
+			return true;
+		}
+
+		if (currentEventTile == null)
+		{
+			return false;
+		}
+
+		string text = SafeCall(() => ((UnityEngine.Object)currentEventTile).name, string.Empty);
+		if (string.IsNullOrWhiteSpace(text) && ((Component)currentEventTile).gameObject != null)
+		{
+			text = SafeCall(() => ((Component)currentEventTile).gameObject.name, string.Empty);
+		}
+
+		return !string.IsNullOrWhiteSpace(text) && text.IndexOf("chest", StringComparison.OrdinalIgnoreCase) >= 0;
 	}
 
 	private bool TryResolveCurrentEventChoice(EventTile currentEventTile, EventPopup activeEventPopup, string actionId)
@@ -405,9 +462,9 @@ public sealed class BridgeActionQueueProcessor
 		return visibleEventChoices.Length;
 	}
 
-	private bool TryResolveCurrentInventoryChoice(PlayerControlsManager controlsManager, EventChooseEntry[] visibleEventChoices, string actionId)
+	private bool TryResolveCurrentInventoryChoice(PlayerControlsManager controlsManager, EventTile currentEventTile, EventPopup activeEventPopup, EventChooseEntry[] visibleEventChoices, string actionId)
 	{
-		if (!ShouldUseInventorySelectionChoices(visibleEventChoices))
+		if (!ShouldUseInventorySelectionChoices(currentEventTile, activeEventPopup, visibleEventChoices))
 		{
 			return false;
 		}
@@ -441,9 +498,9 @@ public sealed class BridgeActionQueueProcessor
 		}, actionId, "PressedSouthButton after inventory slot selection");
 	}
 
-	private bool TryNavigateInventoryChoice(EventChooseEntry[] visibleEventChoices, Vector2 direction, string actionId)
+	private bool TryNavigateInventoryChoice(EventTile currentEventTile, EventPopup activeEventPopup, EventChooseEntry[] visibleEventChoices, Vector2 direction, string actionId)
 	{
-		if (!ShouldUseInventorySelectionChoices(visibleEventChoices))
+		if (!ShouldUseInventorySelectionChoices(currentEventTile, activeEventPopup, visibleEventChoices))
 		{
 			return false;
 		}
@@ -495,8 +552,13 @@ public sealed class BridgeActionQueueProcessor
 		return entry != null && SafeCall(() => ((Il2CppObjectBase)entry).TryCast<ItemChooseEntry>(), null) != null;
 	}
 
-	private static bool ShouldUseInventorySelectionChoices(EventChooseEntry[] visibleEventChoices)
+	private static bool ShouldUseInventorySelectionChoices(EventTile currentEventTile, EventPopup activeEventPopup, EventChooseEntry[] visibleEventChoices)
 	{
+		if (currentEventTile == null && activeEventPopup == null)
+		{
+			return false;
+		}
+
 		if (HasItemChoiceEntry(visibleEventChoices))
 		{
 			return false;
@@ -628,7 +690,7 @@ public sealed class BridgeActionQueueProcessor
 	{
 		if (activeEventPopup == null && currentEventTile == null)
 		{
-			return Array.Empty<EventChooseEntry>();
+			return GetActiveSceneEventChoices();
 		}
 
 		List<EventChooseEntry> list = new List<EventChooseEntry>();
@@ -636,7 +698,16 @@ public sealed class BridgeActionQueueProcessor
 		AddVisibleEventChoice(list, SafeCall(() => activeEventPopup.GetEventChooseEntryAdditional(), null));
 		AddVisibleEventChoice(list, SafeCall(() => currentEventTile.GetEventChooseEntry(), null));
 		AddVisibleEventChoice(list, SafeCall(() => currentEventTile.GetEventChooseEntryAdditional(), null));
+		foreach (EventChooseEntry activeSceneEventChoice in GetActiveSceneEventChoices())
+		{
+			AddVisibleEventChoice(list, activeSceneEventChoice);
+		}
 		return list.ToArray();
+	}
+
+	private static EventChooseEntry[] GetActiveSceneEventChoices()
+	{
+		return UnityEngine.Object.FindObjectsOfType<EventChooseEntry>().Where((EventChooseEntry entry) => entry != null && SafeCall(() => ((Component)entry).gameObject.activeInHierarchy, false)).ToArray();
 	}
 
 	private static void AddVisibleEventChoice(List<EventChooseEntry> results, EventChooseEntry entry)
@@ -717,7 +788,7 @@ public sealed class BridgeActionQueueProcessor
 		EventTile currentEventTile = GetCurrentEventTile(mapManager, playerController);
 		EventPopup activeEventPopup = GetActiveEventPopup(currentEventTile) ?? GetActiveGlobalEventPopup();
 		EventChooseEntry[] visibleEventChoices = GetVisibleEventChoices(currentEventTile, activeEventPopup);
-		if (TryNavigateInventoryChoice(visibleEventChoices, direction, actionId))
+		if (TryNavigateInventoryChoice(currentEventTile, activeEventPopup, visibleEventChoices, direction, actionId))
 		{
 			return true;
 		}
@@ -828,15 +899,21 @@ public sealed class BridgeActionQueueProcessor
 		//IL_001e: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0024: Expected O, but got Unknown
 		MapManager mapManager = UnityEngine.Object.FindObjectOfType<MapManager>();
+		StatsManager statsManager = UnityEngine.Object.FindObjectOfType<StatsManager>();
 		EventTile currentEventTile = GetCurrentEventTile(mapManager, playerController);
 		EventPopup activeEventPopup = GetActiveEventPopup(currentEventTile) ?? GetActiveGlobalEventPopup();
 		EventChooseEntry[] visibleEventChoices = GetVisibleEventChoices(currentEventTile, activeEventPopup);
-		if (TryResolveCurrentInventoryChoice(controlsManager, visibleEventChoices, actionId))
+		if (TryResolveCurrentInventoryChoice(controlsManager, currentEventTile, activeEventPopup, visibleEventChoices, actionId))
 		{
 			return true;
 		}
 
 		if (activeEventPopup != null && TryResolveCurrentEventChoice(currentEventTile, activeEventPopup, actionId))
+		{
+			return true;
+		}
+
+		if (TryStartNewRunFromBattleGameOver(statsManager?.battleManager, actionId))
 		{
 			return true;
 		}
@@ -1009,21 +1086,77 @@ public sealed class BridgeActionQueueProcessor
 		return true;
 	}
 
-	private bool TryBattleAdvance(BattleSystem battleSystem, PlayerControlsManager controlsManager, string actionId)
+	private bool TryStartNewRunFromBattleGameOver(BattleManager battleManager, string actionId)
+	{
+		GameObject battleCanvas = battleManager?.battleCanvas;
+		if (battleCanvas == null || !battleCanvas.activeInHierarchy)
+		{
+			return false;
+		}
+
+		List<BattleControlButton> battleControlButtons = GetBattleControlButtons(battleCanvas);
+		if (battleControlButtons.Count == 0)
+		{
+			return false;
+		}
+
+		BattleControlButton battleControlButton = battleControlButtons.FirstOrDefault(IsBattleGameOverNewRunButton);
+		if (battleControlButton == null)
+		{
+			return false;
+		}
+
+		LogBattleButtonCandidates(actionId, null, battleControlButtons, battleControlButton);
+		battleControlButton.Button.onClick.Invoke();
+		SelectedEventOptionIndexOverride = null;
+		ManualLogSource log = _log;
+		bool flag = default(bool);
+		BepInExInfoLogInterpolatedStringHandler val = new BepInExInfoLogInterpolatedStringHandler(95, 5, out flag);
+		if (flag)
+		{
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("Executed '");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(actionId);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' via gameover button '");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(battleControlButton.ObjectName);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' [path='");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(battleControlButton.ObjectPath);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("', label='");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(battleControlButton.Label);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("', pos=");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<Vector3>(battleControlButton.Position);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("].");
+		}
+		log.LogInfo(val);
+		return true;
+	}
+
+	private bool TryBattleAdvance(BattleSystem battleSystem, StatsManager statsManager, PlayerControlsManager controlsManager, string actionId)
 	{
 		//IL_001d: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0023: Expected O, but got Unknown
+		BattleManager battleManager = statsManager?.battleManager;
+		if (TryClickBattleAdvanceButton(battleManager, battleSystem, actionId))
+		{
+			return true;
+		}
+
 		if (battleSystem != null)
 		{
+			string text = DescribeBattleState(battleSystem, statsManager);
 			battleSystem.RunTurn();
+			string text2 = DescribeBattleState(battleSystem, statsManager);
 			ManualLogSource log = _log;
 			bool flag = default(bool);
-			BepInExInfoLogInterpolatedStringHandler val = new BepInExInfoLogInterpolatedStringHandler(39, 1, out flag);
+			BepInExInfoLogInterpolatedStringHandler val = new BepInExInfoLogInterpolatedStringHandler(66, 3, out flag);
 			if (flag)
 			{
 				((BepInExLogInterpolatedStringHandler)val).AppendLiteral("Executed '");
 				((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(actionId);
-				((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' via BattleSystem.RunTurn().");
+				((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' via BattleSystem.RunTurn() [before=");
+				((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(text);
+				((BepInExLogInterpolatedStringHandler)val).AppendLiteral(", after=");
+				((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(text2);
+				((BepInExLogInterpolatedStringHandler)val).AppendLiteral("].");
 			}
 			log.LogInfo(val);
 			return true;
@@ -1032,6 +1165,287 @@ public sealed class BridgeActionQueueProcessor
 		{
 			controls.PressedSouthButton();
 		}, actionId, "PressedSouthButton");
+	}
+
+	private bool TryClickBattleAdvanceButton(BattleManager battleManager, BattleSystem battleSystem, string actionId)
+	{
+		GameObject battleCanvas = battleManager?.battleCanvas;
+		if (battleCanvas == null || !battleCanvas.activeInHierarchy)
+		{
+			return false;
+		}
+
+		List<BattleControlButton> battleControlButtons = GetBattleControlButtons(battleCanvas);
+		if (battleControlButtons.Count == 0)
+		{
+			return false;
+		}
+
+		BattleControlButton battleControlButton = SelectBattleAdvanceButton(battleControlButtons);
+		if (battleControlButton == null)
+		{
+			return false;
+		}
+
+		LogBattleButtonCandidates(actionId, battleSystem, battleControlButtons, battleControlButton);
+		battleControlButton.Button.onClick.Invoke();
+		SelectedEventOptionIndexOverride = null;
+		ManualLogSource log = _log;
+		bool flag = default(bool);
+		BepInExInfoLogInterpolatedStringHandler val = new BepInExInfoLogInterpolatedStringHandler(94, 5, out flag);
+		if (flag)
+		{
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("Executed '");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(actionId);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' via battle button '");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(battleControlButton.ObjectName);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' [path='");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(battleControlButton.ObjectPath);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' [label='");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(battleControlButton.Label);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("', pos=");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<Vector3>(battleControlButton.Position);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral(", state=");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(DescribeBattleState(battleSystem, null));
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral(", choices=");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(DescribeBattleButtons(battleControlButtons));
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("].");
+		}
+		log.LogInfo(val);
+		return true;
+	}
+
+	private static List<BattleControlButton> GetBattleControlButtons(GameObject battleCanvas)
+	{
+		List<BattleControlButton> list = new List<BattleControlButton>();
+		if (battleCanvas == null)
+		{
+			return list;
+		}
+
+		foreach (Button item in UnityEngine.Object.FindObjectsOfType<Button>())
+		{
+			if (item == null)
+			{
+				continue;
+			}
+
+			GameObject gameObject = ((Component)item).gameObject;
+			if (gameObject == null || !gameObject.activeInHierarchy || !item.interactable)
+			{
+				continue;
+			}
+
+			if (gameObject.GetComponent<InventorySlot>() != null || gameObject.GetComponentInParent<InventorySlot>() != null)
+			{
+				continue;
+			}
+
+			Transform transform = gameObject.transform;
+			if (transform != battleCanvas.transform && !transform.IsChildOf(battleCanvas.transform))
+			{
+				continue;
+			}
+
+			list.Add(new BattleControlButton(item, gameObject.name, BuildTransformPath(transform, battleCanvas.transform), GetButtonLabel(item), transform.position));
+		}
+
+		return list.OrderByDescending((BattleControlButton button) => button.Position.y).ThenBy((BattleControlButton button) => button.Position.x).ToList();
+	}
+
+	private static BattleControlButton SelectBattleAdvanceButton(List<BattleControlButton> buttons)
+	{
+		if (buttons == null || buttons.Count == 0)
+		{
+			return null;
+		}
+
+		float num = buttons.Max((BattleControlButton button) => button.Position.y);
+		List<BattleControlButton> list = buttons.Where((BattleControlButton button) => Mathf.Abs(button.Position.y - num) <= 80f).OrderBy((BattleControlButton button) => button.Position.x).ToList();
+		BattleControlButton battleControlButton = list.OrderBy((BattleControlButton button) => GetBattleAdvancePriority(button)).ThenBy((BattleControlButton button) => button.Position.x).FirstOrDefault((BattleControlButton button) => GetBattleAdvancePriority(button) < int.MaxValue);
+		if (battleControlButton != null)
+		{
+			return battleControlButton;
+		}
+
+		return list.FirstOrDefault() ?? buttons[0];
+	}
+
+	private static int GetBattleAdvancePriority(BattleControlButton button)
+	{
+		if (button == null)
+		{
+			return int.MaxValue;
+		}
+
+		string text = string.Join(" ", new string[3]
+		{
+			button.ObjectName ?? string.Empty,
+			button.Label ?? string.Empty,
+			button.ObjectPath ?? string.Empty
+		}).Trim().ToLowerInvariant();
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			return int.MaxValue;
+		}
+
+		if (text.Contains("play 3") || text.Contains("play3") || text.Contains("3x"))
+		{
+			return 0;
+		}
+
+		if (text.Contains("play 2") || text.Contains("play2") || text.Contains("2x"))
+		{
+			return 1;
+		}
+
+		if (text.Contains("play 1") || text.Contains("play1") || text.Contains("1x"))
+		{
+			return 2;
+		}
+
+		if (text.Contains("step"))
+		{
+			return 3;
+		}
+
+		if (text.Contains("play") || text.Contains("go") || text.Contains("start") || text.Contains("next") || text.Contains("auto") || text.Contains("run"))
+		{
+			return 4;
+		}
+
+		if (text.Contains("pause"))
+		{
+			return 100;
+		}
+
+		return int.MaxValue;
+	}
+
+	private static bool IsBattleGameOverNewRunButton(BattleControlButton button)
+	{
+		if (button == null)
+		{
+			return false;
+		}
+
+		string text = string.Join(" ", new string[3]
+		{
+			button.ObjectName ?? string.Empty,
+			button.Label ?? string.Empty,
+			button.ObjectPath ?? string.Empty
+		}).Trim().ToLowerInvariant();
+		return !string.IsNullOrWhiteSpace(text) && text.Contains("gameover") && text.Contains("new run");
+	}
+
+	private static string DescribeBattleButtons(List<BattleControlButton> buttons)
+	{
+		if (buttons == null || buttons.Count == 0)
+		{
+			return "none";
+		}
+
+		return string.Join("; ", buttons.Select((BattleControlButton button) => button.ObjectName + ":" + (string.IsNullOrWhiteSpace(button.Label) ? "<no-label>" : button.Label) + "@" + button.Position.x.ToString("0.##", CultureInfo.InvariantCulture) + "," + button.Position.y.ToString("0.##", CultureInfo.InvariantCulture)));
+	}
+
+	private void LogBattleButtonCandidates(string actionId, BattleSystem battleSystem, List<BattleControlButton> buttons, BattleControlButton selectedButton)
+	{
+		ManualLogSource log = _log;
+		bool flag = default(bool);
+		BepInExInfoLogInterpolatedStringHandler val = new BepInExInfoLogInterpolatedStringHandler(111, 5, out flag);
+		if (flag)
+		{
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("Battle button candidates for '");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(actionId);
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("' [selected=");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(selectedButton?.ObjectPath ?? "none");
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral(", state=");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(DescribeBattleState(battleSystem, null));
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral(", choices=");
+			((BepInExLogInterpolatedStringHandler)val).AppendFormatted<string>(string.Join("; ", buttons.Select((BattleControlButton button) => button.ObjectPath + ":" + (string.IsNullOrWhiteSpace(button.Label) ? "<no-label>" : button.Label) + "@" + button.Position.x.ToString("0.##", CultureInfo.InvariantCulture) + "," + button.Position.y.ToString("0.##", CultureInfo.InvariantCulture))));
+			((BepInExLogInterpolatedStringHandler)val).AppendLiteral("].");
+		}
+		log.LogInfo(val);
+	}
+
+	private static string GetButtonLabel(Button button)
+	{
+		if (button == null)
+		{
+			return string.Empty;
+		}
+
+		foreach (TextMeshProUGUI item in ((Component)button).GetComponentsInChildren<TextMeshProUGUI>(includeInactive: true))
+		{
+			string text = GetTrimmedText((TMP_Text)item);
+			if (!string.IsNullOrWhiteSpace(text))
+			{
+				return text;
+			}
+		}
+
+		foreach (Text item2 in ((Component)button).GetComponentsInChildren<Text>(includeInactive: true))
+		{
+			string text2 = GetTrimmedText(item2);
+			if (!string.IsNullOrWhiteSpace(text2))
+			{
+				return text2;
+			}
+		}
+
+		return string.Empty;
+	}
+
+	private static string GetTrimmedText(TMP_Text label)
+	{
+		return string.IsNullOrWhiteSpace(label?.text) ? string.Empty : label.text.Trim();
+	}
+
+	private static string GetTrimmedText(Text label)
+	{
+		return string.IsNullOrWhiteSpace(label?.text) ? string.Empty : label.text.Trim();
+	}
+
+	private static string BuildTransformPath(Transform transform, Transform root)
+	{
+		if (transform == null)
+		{
+			return string.Empty;
+		}
+
+		List<string> list = new List<string>();
+		Transform val = transform;
+		while (val != null)
+		{
+			list.Add(val.name);
+			if (val == root)
+			{
+				break;
+			}
+
+			val = val.parent;
+		}
+
+		list.Reverse();
+		return string.Join("/", list);
+	}
+
+	private static string DescribeBattleState(BattleSystem battleSystem, StatsManager statsManager)
+	{
+		if (battleSystem == null)
+		{
+			return "battleSystem=null";
+		}
+
+		EnemyStats enemyStats = battleSystem._enemyStats;
+		string text = SafeCall(() => ((object)battleSystem.GetBattleTurn()).ToString(), "unknown");
+		int num = SafeCall(() => battleSystem.GetTurnCounter(), -1);
+		int? num2 = SafeCall(() => (statsManager != null) ? new int?(statsManager.GetPlayerHealth()) : null, (int?)null);
+		int? num3 = SafeCall(() => (enemyStats != null) ? new int?(enemyStats.health) : null, (int?)null);
+		int? num4 = SafeCall(() => (enemyStats != null) ? new int?(enemyStats.maxHealth) : null, (int?)null);
+		string text2 = SafeCall(() => ((object)battleSystem._battlePhase).ToString(), "unknown");
+		bool? flag = SafeCall(() => new bool?(battleSystem.isPaused), (bool?)null);
+		return "turn=" + num.ToString(CultureInfo.InvariantCulture) + ", active=" + text + ", phase=" + text2 + ", paused=" + (flag.HasValue ? flag.Value.ToString() : "null") + ", playerHealth=" + (num2.HasValue ? num2.Value.ToString(CultureInfo.InvariantCulture) : "null") + ", enemyHealth=" + (num3.HasValue ? num3.Value.ToString(CultureInfo.InvariantCulture) : "null") + "/" + (num4.HasValue ? num4.Value.ToString(CultureInfo.InvariantCulture) : "null");
 	}
 
 	private bool TryInvoke<T>(T target, Action<T> callback, string actionId, string pathway) where T : class

@@ -52,8 +52,6 @@ public static class QueueExecutorNative
 
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_KEYUP = 0x0002;
-    public const uint KEYEVENTF_SCANCODE = 0x0008;
-
     [DllImport("user32.dll")]
     public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
 
@@ -75,12 +73,15 @@ public static class QueueExecutorNative
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint numberOfInputs, INPUT[] inputs, int sizeOfInputStructure);
 
-    public static int SendScanCode(ushort scanCode, int holdMilliseconds)
+    public static int SendVirtualKey(ushort virtualKey, int holdMilliseconds)
     {
         var inputs = new INPUT[1];
         inputs[0].type = INPUT_KEYBOARD;
-        inputs[0].U.ki.wScan = scanCode;
-        inputs[0].U.ki.dwFlags = KEYEVENTF_SCANCODE;
+        inputs[0].U.ki.wVk = virtualKey;
+        inputs[0].U.ki.wScan = 0;
+        inputs[0].U.ki.dwFlags = 0;
+        inputs[0].U.ki.time = 0;
+        inputs[0].U.ki.dwExtraInfo = UIntPtr.Zero;
 
         if (SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) != 1)
         {
@@ -89,7 +90,7 @@ public static class QueueExecutorNative
 
         Thread.Sleep(holdMilliseconds);
 
-        inputs[0].U.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+        inputs[0].U.ki.dwFlags = KEYEVENTF_KEYUP;
         if (SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) != 1)
         {
             return Marshal.GetLastWin32Error();
@@ -159,7 +160,7 @@ function Send-KeyBinding {
         [int]$TargetProcessId
     )
 
-    $errorCode = [QueueExecutorNative]::SendScanCode([uint16]$Binding.ScanCode, [int]$Binding.HoldMilliseconds)
+    $errorCode = [QueueExecutorNative]::SendVirtualKey([uint16]$Binding.VirtualKey, [int]$Binding.HoldMilliseconds)
     if ($errorCode -eq 0) {
         return $true
     }
@@ -187,19 +188,19 @@ function Invoke-QueuedAction {
     param([string]$ActionId)
 
     $keyMap = @{
-        confirm = @{ ScanCode = 0x1C; HoldMilliseconds = 80; SendKeys = '{ENTER}' }
-        cancel = @{ ScanCode = 0x01; HoldMilliseconds = 80; SendKeys = '{ESC}' }
-        move_up = @{ ScanCode = 0x11; HoldMilliseconds = 150; SendKeys = 'w' }
-        move_down = @{ ScanCode = 0x1F; HoldMilliseconds = 150; SendKeys = 's' }
-        move_left = @{ ScanCode = 0x1E; HoldMilliseconds = 150; SendKeys = 'a' }
-        move_right = @{ ScanCode = 0x20; HoldMilliseconds = 150; SendKeys = 'd' }
-        attack = @{ ScanCode = 0x39; HoldMilliseconds = 80; SendKeys = ' ' }
-        interact = @{ ScanCode = 0x39; HoldMilliseconds = 80; SendKeys = ' ' }
-        open_map = @{ ScanCode = 0x32; HoldMilliseconds = 80; SendKeys = 'm' }
-        close_map = @{ ScanCode = 0x01; HoldMilliseconds = 80; SendKeys = '{ESC}' }
-        end_turn = @{ ScanCode = 0x12; HoldMilliseconds = 80; SendKeys = 'e' }
-        reroll_shop = @{ ScanCode = 0x13; HoldMilliseconds = 80; SendKeys = 'r' }
-        buy_selected = @{ ScanCode = 0x30; HoldMilliseconds = 80; SendKeys = 'b' }
+        confirm = @{ VirtualKey = 0x0D; HoldMilliseconds = 80; SendKeys = '{ENTER}' }
+        cancel = @{ VirtualKey = 0x1B; HoldMilliseconds = 80; SendKeys = '{ESC}' }
+        move_up = @{ VirtualKey = 0x57; HoldMilliseconds = 150; SendKeys = 'w' }
+        move_down = @{ VirtualKey = 0x53; HoldMilliseconds = 150; SendKeys = 's' }
+        move_left = @{ VirtualKey = 0x41; HoldMilliseconds = 150; SendKeys = 'a' }
+        move_right = @{ VirtualKey = 0x44; HoldMilliseconds = 150; SendKeys = 'd' }
+        attack = @{ VirtualKey = 0x20; HoldMilliseconds = 80; SendKeys = ' ' }
+        interact = @{ VirtualKey = 0x20; HoldMilliseconds = 80; SendKeys = ' ' }
+        open_map = @{ VirtualKey = 0x4D; HoldMilliseconds = 80; SendKeys = 'm' }
+        close_map = @{ VirtualKey = 0x1B; HoldMilliseconds = 80; SendKeys = '{ESC}' }
+        end_turn = @{ VirtualKey = 0x45; HoldMilliseconds = 80; SendKeys = 'e' }
+        reroll_shop = @{ VirtualKey = 0x52; HoldMilliseconds = 80; SendKeys = 'r' }
+        buy_selected = @{ VirtualKey = 0x42; HoldMilliseconds = 80; SendKeys = 'b' }
     }
 
     $binding = $keyMap[$ActionId]

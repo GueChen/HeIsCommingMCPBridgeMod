@@ -82,6 +82,7 @@ public sealed class BridgeScaffold
 			"chest" => "Open current chest",
 			"shop" => "Enter current shop",
 			"campfire" => "Use current campfire",
+			"home" => "Use current home",
 			"fortune_teller" => "Use current fortune teller",
 			"waypoint" => "Use current waypoint",
 			"travel" => "Use current travel node",
